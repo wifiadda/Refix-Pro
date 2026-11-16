@@ -1,0 +1,277 @@
+{
+  "entities": {
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized administrator account for Refix Pro dashboard.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 200 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "role": { "type": "string", "enum": ["super_admin", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "role", "createdAt"]
+    },
+    "WebsiteSettings": {
+      "title": "WebsiteSettings",
+      "description": "Editable global business profile, header/footer navigation, Gurugram SEO metadata, FAQs, and all-page content.",
+      "type": "object",
+      "properties": {
+        "businessName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "tagline": { "type": "string", "maxLength": 200 },
+        "phone": { "type": "string", "minLength": 5, "maxLength": 30 },
+        "whatsapp": { "type": "string", "minLength": 5, "maxLength": 30 },
+        "email": { "type": "string", "maxLength": 160 },
+        "websiteUrl": { "type": "string", "maxLength": 200 },
+        "address": { "type": "string", "minLength": 5, "maxLength": 300 },
+        "businessHours": { "type": "string", "minLength": 2, "maxLength": 200 },
+        "googleRating": { "type": "number" },
+        "googleReviewCount": { "type": "number" },
+        "googleReviewsUrl": { "type": "string", "maxLength": 400 },
+        "logoUrl": { "type": "string", "maxLength": 300000 },
+        "heroHeadline": { "type": "string", "minLength": 5, "maxLength": 180 },
+        "heroSubheadline": { "type": "string", "minLength": 10, "maxLength": 500 },
+        "heroImageUrl": { "type": "string", "maxLength": 300000 },
+        "headerCtaText": { "type": "string", "maxLength": 60 },
+        "headerCtaUrl": { "type": "string", "maxLength": 160 },
+        "navLinks": { "type": "array" },
+        "footerDescription": { "type": "string", "maxLength": 500 },
+        "footerTagline": { "type": "string", "maxLength": 200 },
+        "footerLegalText": { "type": "string", "maxLength": 400 },
+        "footerQuickLinks": { "type": "array" },
+        "footerServiceLinks": { "type": "array" },
+        "socialInstagram": { "type": "string", "maxLength": 300 },
+        "socialFacebook": { "type": "string", "maxLength": 300 },
+        "seoTitle": { "type": "string", "maxLength": 120 },
+        "seoDescription": { "type": "string", "maxLength": 300 },
+        "seoKeywords": { "type": "string", "maxLength": 600 },
+        "serviceAreasText": { "type": "string", "maxLength": 400 },
+        "homeFaqs": { "type": "array" },
+        "pageContent": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["businessName", "phone", "whatsapp", "address", "businessHours", "googleRating", "googleReviewCount", "heroHeadline", "heroSubheadline", "updatedAt"]
+    },
+    "Service": {
+      "title": "Service",
+      "description": "Apple MacBook, iPad & iPhone repair service item managed by Refix Pro.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "slug": { "type": "string", "minLength": 2, "maxLength": 160, "pattern": "^[a-z0-9-]+$" },
+        "category": {
+          "type": "string",
+          "enum": ["Hardware Repair", "Display Repair", "Battery & Charging", "Liquid Damage Repair", "Software & Performance", "Other Repairs"]
+        },
+        "shortDescription": { "type": "string", "minLength": 5, "maxLength": 400 },
+        "repairInfo": { "type": "string", "minLength": 5, "maxLength": 1200 },
+        "symptoms": { "type": "array" },
+        "imageUrl": { "type": "string", "maxLength": 300000 },
+        "priceDisplay": { "type": "string", "maxLength": 80 },
+        "showPrice": { "type": "boolean" },
+        "isActive": { "type": "boolean" },
+        "sortOrder": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "slug", "category", "shortDescription", "repairInfo", "symptoms", "imageUrl", "showPrice", "isActive", "sortOrder", "updatedAt"]
+    },
+    "MacBookModel": {
+      "title": "MacBookModel",
+      "description": "Supported original Apple MacBook, iPad (Tablet), and iPhone model entry.",
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string",
+          "enum": ["MacBook Air", "MacBook Pro", "Intel MacBook", "Apple Silicon M1", "Apple Silicon M2", "Apple Silicon M3", "Apple Silicon M4", "Newer Compatible Models", "iPad & Tablet", "iPhone"]
+        },
+        "name": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "yearRange": { "type": "string", "minLength": 2, "maxLength": 60 },
+        "processor": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "modelIdentifiers": { "type": "string", "maxLength": 160 },
+        "commonIssues": { "type": "array" },
+        "availabilityNote": { "type": "string", "maxLength": 300 },
+        "isActive": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["category", "name", "yearRange", "processor", "commonIssues", "isActive", "updatedAt"]
+    },
+    "RepairEnquiry": {
+      "title": "RepairEnquiry",
+      "description": "Customer MacBook repair booking submission with private PII.",
+      "type": "object",
+      "properties": {
+        "enquiryCode": { "type": "string", "minLength": 4, "maxLength": 32, "pattern": "^RP-[A-Z0-9-]+$" },
+        "customerName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "mobile": { "type": "string", "minLength": 7, "maxLength": 25 },
+        "whatsapp": { "type": "string", "minLength": 7, "maxLength": 25 },
+        "email": { "type": "string", "maxLength": 160 },
+        "macbookModel": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "macbookYear": { "type": "string", "maxLength": 40 },
+        "processorType": { "type": "string", "minLength": 0, "maxLength": 80 },
+        "serviceName": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "problemDescription": { "type": "string", "minLength": 0, "maxLength": 2000 },
+        "preferredContactMethod": { "type": "string", "enum": ["WhatsApp", "Phone Call", "Email"] },
+        "preferredVisitDate": { "type": "string", "maxLength": 40 },
+        "additionalNotes": { "type": "string", "maxLength": 1000 },
+        "imageUrls": { "type": "array" },
+        "status": {
+          "type": "string",
+          "enum": ["New", "Contacted", "Inspection", "Estimate Sent", "Approved", "In Repair", "Ready for Delivery", "Completed", "Cancelled"]
+        },
+        "technicianNotes": { "type": "string", "maxLength": 2000 },
+        "repairEstimate": { "type": "string", "maxLength": 120 },
+        "followUpDate": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["enquiryCode", "customerName", "mobile", "whatsapp", "macbookModel", "processorType", "serviceName", "problemDescription", "preferredContactMethod", "status", "technicianNotes", "repairEstimate", "followUpDate", "createdAt", "updatedAt"]
+    },
+    "RepairTracking": {
+      "title": "RepairTracking",
+      "description": "Non-PII repair status projection keyed by SHA-256 hash of enquiry code and mobile number.",
+      "type": "object",
+      "properties": {
+        "enquiryCode": { "type": "string", "minLength": 4, "maxLength": 32, "pattern": "^RP-[A-Z0-9-]+$" },
+        "macbookModel": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "serviceName": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "status": {
+          "type": "string",
+          "enum": ["New", "Contacted", "Inspection", "Estimate Sent", "Approved", "In Repair", "Ready for Delivery", "Completed", "Cancelled"]
+        },
+        "repairEstimate": { "type": "string", "maxLength": 120 },
+        "followUpDate": { "type": "string", "maxLength": 40 },
+        "publicUpdateNote": { "type": "string", "maxLength": 500 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["enquiryCode", "macbookModel", "serviceName", "status", "repairEstimate", "followUpDate", "publicUpdateNote", "updatedAt"]
+    },
+    "ContactMessage": {
+      "title": "ContactMessage",
+      "description": "General customer contact message submitted from the Contact page.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "phone": { "type": "string", "minLength": 7, "maxLength": 25 },
+        "email": { "type": "string", "maxLength": 160 },
+        "subject": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "message": { "type": "string", "minLength": 5, "maxLength": 2000 },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "phone", "subject", "message", "isRead", "createdAt"]
+    },
+    "BlogCategory": {
+      "title": "BlogCategory",
+      "description": "Blog category metadata for SEO content organization.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "slug": { "type": "string", "minLength": 2, "maxLength": 100, "pattern": "^[a-z0-9-]+$" },
+        "description": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "slug", "createdAt"]
+    },
+    "BlogPost": {
+      "title": "BlogPost",
+      "description": "SEO-optimized MacBook repair article with FAQs and structured metadata.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 5, "maxLength": 200 },
+        "slug": { "type": "string", "minLength": 3, "maxLength": 200, "pattern": "^[a-z0-9-]+$" },
+        "category": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "excerpt": { "type": "string", "minLength": 10, "maxLength": 500 },
+        "content": { "type": "string", "minLength": 20, "maxLength": 30000 },
+        "featuredImage": { "type": "string", "maxLength": 300000 },
+        "authorName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "status": { "type": "string", "enum": ["draft", "published", "scheduled"] },
+        "publishedAt": { "type": "string", "maxLength": 60 },
+        "seoTitle": { "type": "string", "maxLength": 160 },
+        "seoDescription": { "type": "string", "maxLength": 320 },
+        "tags": { "type": "array" },
+        "faqs": { "type": "array" },
+        "isFeatured": { "type": "boolean" },
+        "views": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "slug", "category", "excerpt", "content", "featuredImage", "authorName", "status", "publishedAt", "tags", "faqs", "isFeatured", "views", "createdAt", "updatedAt"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Verified business-supplied customer review.",
+      "type": "object",
+      "properties": {
+        "authorLabel": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "rating": { "type": "number" },
+        "quote": { "type": "string", "minLength": 5, "maxLength": 800 },
+        "source": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "dateLabel": { "type": "string", "maxLength": 60 },
+        "isVisible": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorLabel", "rating", "quote", "source", "isVisible", "createdAt"]
+    },
+    "GalleryImage": {
+      "title": "GalleryImage",
+      "description": "Repair workstation and studio photograph displayed in About and Contact galleries.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "caption": { "type": "string", "maxLength": 300 },
+        "imageUrl": { "type": "string", "minLength": 2, "maxLength": 300000 },
+        "category": { "type": "string", "maxLength": 60 },
+        "sortOrder": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "imageUrl", "category", "sortOrder", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Authorized admin accounts with dashboard write access."
+    },
+    "/websiteSettings/{settingsId}": {
+      "schema": { "$ref": "#/entities/WebsiteSettings" },
+      "description": "Global Refix Pro business configuration and homepage copy."
+    },
+    "/services/{serviceId}": {
+      "schema": { "$ref": "#/entities/Service" },
+      "description": "Catalog of MacBook repair services."
+    },
+    "/macbookModels/{modelId}": {
+      "schema": { "$ref": "#/entities/MacBookModel" },
+      "description": "Supported MacBook models and processor families."
+    },
+    "/repairEnquiries/{enquiryId}": {
+      "schema": { "$ref": "#/entities/RepairEnquiry" },
+      "description": "Customer MacBook repair booking requests containing private PII."
+    },
+    "/repairTracking/{trackingId}": {
+      "schema": { "$ref": "#/entities/RepairTracking" },
+      "description": "Non-PII repair status projection keyed by hashed Enquiry ID + mobile number."
+    },
+    "/contactMessages/{messageId}": {
+      "schema": { "$ref": "#/entities/ContactMessage" },
+      "description": "Customer messages from the Contact Us form."
+    },
+    "/blogCategories/{categoryId}": {
+      "schema": { "$ref": "#/entities/BlogCategory" },
+      "description": "Categories for MacBook repair blog articles."
+    },
+    "/blogPosts/{postId}": {
+      "schema": { "$ref": "#/entities/BlogPost" },
+      "description": "SEO MacBook repair articles and troubleshooting guides."
+    },
+    "/reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/Review" },
+      "description": "Verified Google and business-supplied testimonials."
+    },
+    "/galleryImages/{imageId}": {
+      "schema": { "$ref": "#/entities/GalleryImage" },
+      "description": "Repair lab and studio workstation gallery images."
+    }
+  }
+}

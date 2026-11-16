@@ -1,0 +1,6 @@
+{
+  "name": "Refix Pro – MacBook Repair Gurugram",
+  "description": "Dedicated Apple MacBook repair specialist in Sector 14, Gurugram. Logic board chip-level repair, Retina display replacement, battery service, and liquid damage diagnostics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
