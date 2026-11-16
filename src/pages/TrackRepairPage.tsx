@@ -11,7 +11,11 @@ import {
   StaggerContainer,
 } from '../components/MotionPrimitives';
 
-export function TrackRepairPage() {
+export function TrackRepairPage({
+  onNotify,
+}: {
+  onNotify?: (type: 'success' | 'error', message: string) => void;
+}) {
   const { settings } = useApp();
   const [searchParams] = useSearchParams();
   const initialCode = searchParams.get('code') || '';
@@ -45,7 +49,11 @@ export function TrackRepairPage() {
         </HeroReveal>
 
         <FadeInSection delay={0.05}>
-          <TrackRepairTool initialCode={initialCode} initialMobile={initialMobile} />
+          <TrackRepairTool
+            initialCode={initialCode}
+            initialMobile={initialMobile}
+            onNotify={onNotify}
+          />
         </FadeInSection>
 
         <StaggerContainer className="grid grid-cols-1 md:grid-cols-3 gap-5">

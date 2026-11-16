@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Download, MessageCircle, Search, Trash2, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { ENQUIRY_STATUSES, EnquiryStatus, RepairEnquiry } from '../../types';
+import { ENQUIRY_STATUSES, EnquiryStatus, PaymentStatus, RepairEnquiry } from '../../types';
 import { buildWhatsAppUrl } from '../../utils/whatsapp';
 
 export function AdminEnquiriesTab({
@@ -19,6 +19,10 @@ export function AdminEnquiriesTab({
   const [editNotes, setEditNotes] = useState('');
   const [editEstimate, setEditEstimate] = useState('');
   const [editFollowUp, setEditFollowUp] = useState('');
+  const [editPayableAmount, setEditPayableAmount] = useState('');
+  const [editPaymentStatus, setEditPaymentStatus] = useState<PaymentStatus>('Unpaid');
+  const [editPaymentMethod, setEditPaymentMethod] = useState('');
+  const [editPaymentRef, setEditPaymentRef] = useState('');
   const [saving, setSaving] = useState(false);
 
   const filtered = useMemo(() => {
@@ -42,6 +46,12 @@ export function AdminEnquiriesTab({
     setEditNotes(enq.technicianNotes || '');
     setEditEstimate(enq.repairEstimate || '');
     setEditFollowUp(enq.followUpDate || '');
+    setEditPayableAmount(
+      enq.payableAmount && enq.payableAmount > 0 ? String(enq.payableAmount) : ''
+    );
+    setEditPaymentStatus(enq.paymentStatus || 'Unpaid');
+    setEditPaymentMethod(enq.paymentMethod || '');
+    setEditPaymentRef(enq.paymentReference || '');
   };
 
   const handleSaveDetail = async (e: React.FormEvent) => {
@@ -54,6 +64,19 @@ export function AdminEnquiriesTab({
         technicianNotes: editNotes,
         repairEstimate: editEstimate,
         followUpDate: editFollowUp,
+        payableAmount: Math.max(0, Math.round(Number(editPayableAmount) || 0)),
+        paymentStatus: editPaymentStatus,
+        paymentMethod: editPaymentMethod,
+        paymentReference: editPaymentRef,
+        paidAt:
+          editPaymentStatus === 'Paid'
+            ? selected.paidAt ||
+              new Date().toLocaleString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              })
+            : '',
       });
       onNotify('success', `Updated enquiry ${selected.enquiryCode}`);
       setSelected(null);
@@ -200,7 +223,20 @@ export function AdminEnquiriesTab({
                     {enq.status}
                   </td>
                   <td className="py-3 px-4 font-mono tabular-nums text-xs text-[#424245]">
-                    {enq.repairEstimate || '—'}
+                    <p>{enq.repairEstimate || '—'}</p>
+                    {enq.payableAmount && enq.payableAmount > 0 ? (
+                      <p
+                        className={`text-[11px] font-semibold mt-0.5 ${
+                          enq.paymentStatus === 'Paid'
+                            ? 'text-emerald-700'
+                            : enq.paymentStatus === 'Pending Verification'
+                              ? 'text-amber-700'
+                              : 'text-[#0066CC]'
+                        }`}
+                      >
+                        Bill: ₹{enq.payableAmount.toLocaleString('en-IN')} ({enq.paymentStatus || 'Unpaid'})
+                      </p>
+                    ) : null}
                   </td>
                   <td className="py-3 px-4 text-right whitespace-nowrap space-x-2">
                     <button
@@ -359,6 +395,61 @@ export function AdminEnquiriesTab({
                     value={editFollowUp}
                     onChange={(e) => setEditFollowUp(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA]">
+                <div>
+                  <label className="block text-xs font-semibold text-[#1D1D1F] mb-1">
+                    Final Payable Bill (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={500000}
+                    value={editPayableAmount}
+                    onChange={(e) => setEditPayableAmount(e.target.value)}
+                    placeholder="e.g. 6500"
+                    className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-sm font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1D1D1F] mb-1">
+                    Payment Status
+                  </label>
+                  <select
+                    value={editPaymentStatus}
+                    onChange={(e) => setEditPaymentStatus(e.target.value as PaymentStatus)}
+                    className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-sm"
+                  >
+                    <option value="Unpaid">Unpaid</option>
+                    <option value="Pending Verification">Pending Verification</option>
+                    <option value="Paid">Paid</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1D1D1F] mb-1">
+                    Payment Method
+                  </label>
+                  <input
+                    type="text"
+                    value={editPaymentMethod}
+                    onChange={(e) => setEditPaymentMethod(e.target.value)}
+                    placeholder="Razorpay / UPI / Cash"
+                    className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#1D1D1F] mb-1">
+                    Payment Ref / UTR
+                  </label>
+                  <input
+                    type="text"
+                    value={editPaymentRef}
+                    onChange={(e) => setEditPaymentRef(e.target.value)}
+                    placeholder="pay_... or UTR"
+                    className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-sm font-mono"
                   />
                 </div>
               </div>

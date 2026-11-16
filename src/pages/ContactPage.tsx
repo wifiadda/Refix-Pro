@@ -6,6 +6,7 @@ import { useSeoMeta } from '../utils/seo';
 import { buildTelHref, buildWhatsAppUrl } from '../utils/whatsapp';
 import { GoogleMapLocation } from '../components/GoogleMapLocation';
 import { SafeImage } from '../components/SafeImage';
+import { SocialLinksBar } from '../components/SocialLinksBar';
 import {
   FadeInSection,
   HeroReveal,
@@ -167,6 +168,11 @@ export function ContactPage({
                 <MessageCircle className="w-3.5 h-3.5" />
                 WhatsApp Chat
               </a>
+            </div>
+
+            <div className="pt-3 border-t border-[#E5E5EA] space-y-2">
+              <p className="text-xs font-semibold text-[#6E6E73]">Follow Refix Pro</p>
+              <SocialLinksBar settings={settings} variant="light" size="sm" />
             </div>
           </div>
         </FadeInSection>

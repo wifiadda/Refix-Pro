@@ -47,8 +47,10 @@ export async function compressImageToDataUrl(
         }
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         let dataUrl = canvas.toDataURL('image/jpeg', quality);
-        if (dataUrl.length > 200000) {
-          dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+        const qualities = [0.6, 0.45, 0.3];
+        for (const q of qualities) {
+          if (dataUrl.length <= 180000) break;
+          dataUrl = canvas.toDataURL('image/jpeg', q);
         }
         resolve(dataUrl);
       };

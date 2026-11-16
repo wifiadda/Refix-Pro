@@ -19,10 +19,8 @@ import {
   Navigation,
   PenSquare,
   Phone,
-  Search,
   ShieldCheck,
   Star,
-  UserCheck,
   Wrench,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -34,6 +32,7 @@ import { PriceEstimatorTool } from '../components/PriceEstimatorTool';
 import { TrackRepairTool } from '../components/TrackRepairTool';
 import { RepairProcessTimeline } from '../components/RepairProcessTimeline';
 import { WriteReviewForm } from '../components/WriteReviewForm';
+import { SocialLinksBar } from '../components/SocialLinksBar';
 import {
   FadeInSection,
   HeroReveal,
@@ -191,7 +190,7 @@ export function HomePage({
   quotaExceeded?: boolean;
   onNotify?: (type: 'success' | 'error', message: string) => void;
 }) {
-  const { settings, models, reviews, blogPosts, googleLiveProfile, user } = useApp();
+  const { settings, models, reviews, blogPosts, googleLiveProfile } = useApp();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [activeModelTab, setActiveModelTab] = useState<HomeModelTab>('All Devices');
   const [showReviewComposer, setShowReviewComposer] = useState(false);
@@ -426,20 +425,6 @@ export function HomePage({
                   <Phone className="w-4 h-4 text-[#0066CC]" />
                   Call Now
                 </a>
-                <Link
-                  to="/track"
-                  className="inline-flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl border border-[#E5E5EA] bg-[#F5F5F7] hover:bg-[#E5E5EA]/70 text-[#1D1D1F] text-sm font-semibold transition-colors whitespace-nowrap"
-                >
-                  <Search className="w-4 h-4 text-[#0066CC]" />
-                  Track Repair
-                </Link>
-                <Link
-                  to="/dashboard"
-                  className="inline-flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl border border-[#D2D2D7] bg-white hover:bg-[#F5F5F7] text-[#1D1D1F] text-sm font-semibold transition-colors whitespace-nowrap"
-                >
-                  <UserCheck className="w-4 h-4 text-[#0066CC]" />
-                  {user ? 'My Dashboard' : 'Customer Login'}
-                </Link>
               </div>
             </HeroReveal>
 
@@ -668,7 +653,7 @@ export function HomePage({
 
           <FadeInSection delay={0.08} className="scroll-mt-24">
             <div id="track-repair">
-              <TrackRepairTool compact />
+              <TrackRepairTool compact onNotify={onNotify} />
             </div>
           </FadeInSection>
         </div>
@@ -1239,11 +1224,15 @@ export function HomePage({
                 Send a Message
               </Link>
               <Link
-                to="/dashboard"
+                to="/pay"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#D2D2D7] hover:bg-[#F5F5F7] text-sm font-semibold text-[#0066CC] transition-colors whitespace-nowrap"
               >
-                Customer Dashboard
+                Pay Repair Bill
               </Link>
+            </div>
+            <div className="pt-2 space-y-2">
+              <p className="text-xs font-semibold text-[#6E6E73]">Connect With Refix Pro</p>
+              <SocialLinksBar settings={settings} variant="light" size="sm" />
             </div>
           </FadeInSection>
 

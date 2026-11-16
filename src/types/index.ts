@@ -190,6 +190,17 @@ export interface WebsiteSettings {
   footerServiceLinks: FooterLinkItem[];
   socialInstagram: string;
   socialFacebook: string;
+  socialYoutube: string;
+  socialLinkedin: string;
+  socialTwitter: string;
+  razorpayEnabled: boolean;
+  razorpayKeyId: string;
+  razorpayPaymentLinkUrl: string;
+  manualPaymentEnabled: boolean;
+  manualUpiId: string;
+  manualUpiQrUrl: string;
+  manualBankDetails: string;
+  manualPaymentNote: string;
   seoTitle: string;
   seoDescription: string;
   seoKeywords: string;
@@ -228,6 +239,9 @@ export interface MacBookModelItem {
   updatedAt?: unknown;
 }
 
+export type PaymentStatus = 'Unpaid' | 'Pending Verification' | 'Paid';
+export type PaymentMethodType = 'Razorpay' | 'Manual UPI / Bank';
+
 export interface RepairEnquiry {
   id: string;
   userId?: string;
@@ -249,6 +263,11 @@ export interface RepairEnquiry {
   technicianNotes: string;
   repairEstimate: string;
   followUpDate: string;
+  payableAmount?: number;
+  paymentStatus?: PaymentStatus;
+  paymentMethod?: string;
+  paymentReference?: string;
+  paidAt?: string;
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -262,7 +281,27 @@ export interface RepairTrackingRecord {
   repairEstimate: string;
   followUpDate: string;
   publicUpdateNote: string;
+  payableAmount?: number;
+  paymentStatus?: PaymentStatus;
+  paymentMethod?: string;
+  paymentReference?: string;
+  paidAt?: string;
   updatedAt?: unknown;
+}
+
+export interface PaymentSubmission {
+  id: string;
+  userId?: string;
+  enquiryCode: string;
+  customerName: string;
+  mobile: string;
+  amount: number;
+  method: PaymentMethodType;
+  transactionRef: string;
+  notes?: string;
+  status: 'Pending Verification' | 'Verified Paid' | 'Rejected';
+  createdAt?: unknown;
+  verifiedAt?: string;
 }
 
 export interface ContactMessage {

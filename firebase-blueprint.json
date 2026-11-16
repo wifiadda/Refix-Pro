@@ -45,6 +45,17 @@
         "footerServiceLinks": { "type": "array" },
         "socialInstagram": { "type": "string", "maxLength": 300 },
         "socialFacebook": { "type": "string", "maxLength": 300 },
+        "socialYoutube": { "type": "string", "maxLength": 300 },
+        "socialLinkedin": { "type": "string", "maxLength": 300 },
+        "socialTwitter": { "type": "string", "maxLength": 300 },
+        "razorpayEnabled": { "type": "boolean" },
+        "razorpayKeyId": { "type": "string", "maxLength": 120 },
+        "razorpayPaymentLinkUrl": { "type": "string", "maxLength": 400 },
+        "manualPaymentEnabled": { "type": "boolean" },
+        "manualUpiId": { "type": "string", "maxLength": 160 },
+        "manualUpiQrUrl": { "type": "string", "maxLength": 300000 },
+        "manualBankDetails": { "type": "string", "maxLength": 600 },
+        "manualPaymentNote": { "type": "string", "maxLength": 500 },
         "seoTitle": { "type": "string", "maxLength": 120 },
         "seoDescription": { "type": "string", "maxLength": 300 },
         "seoKeywords": { "type": "string", "maxLength": 600 },
@@ -125,6 +136,11 @@
         "technicianNotes": { "type": "string", "maxLength": 2000 },
         "repairEstimate": { "type": "string", "maxLength": 120 },
         "followUpDate": { "type": "string", "maxLength": 40 },
+        "payableAmount": { "type": "number" },
+        "paymentStatus": { "type": "string", "enum": ["Unpaid", "Pending Verification", "Paid"] },
+        "paymentMethod": { "type": "string", "maxLength": 60 },
+        "paymentReference": { "type": "string", "maxLength": 140 },
+        "paidAt": { "type": "string", "maxLength": 60 },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
@@ -145,9 +161,33 @@
         "repairEstimate": { "type": "string", "maxLength": 120 },
         "followUpDate": { "type": "string", "maxLength": 40 },
         "publicUpdateNote": { "type": "string", "maxLength": 500 },
+        "payableAmount": { "type": "number" },
+        "paymentStatus": { "type": "string", "enum": ["Unpaid", "Pending Verification", "Paid"] },
+        "paymentMethod": { "type": "string", "maxLength": 60 },
+        "paymentReference": { "type": "string", "maxLength": 140 },
+        "paidAt": { "type": "string", "maxLength": 60 },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["enquiryCode", "macbookModel", "serviceName", "status", "repairEstimate", "followUpDate", "publicUpdateNote", "updatedAt"]
+    },
+    "PaymentSubmission": {
+      "title": "PaymentSubmission",
+      "description": "Customer online Razorpay or manual UPI/bank payment proof submitted from the website.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "enquiryCode": { "type": "string", "minLength": 3, "maxLength": 40 },
+        "customerName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "mobile": { "type": "string", "minLength": 7, "maxLength": 25 },
+        "amount": { "type": "number" },
+        "method": { "type": "string", "enum": ["Razorpay", "Manual UPI / Bank"] },
+        "transactionRef": { "type": "string", "minLength": 4, "maxLength": 140 },
+        "notes": { "type": "string", "maxLength": 400 },
+        "status": { "type": "string", "enum": ["Pending Verification", "Verified Paid", "Rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "verifiedAt": { "type": "string", "maxLength": 60 }
+      },
+      "required": ["enquiryCode", "customerName", "mobile", "amount", "method", "transactionRef", "status", "createdAt"]
     },
     "ContactMessage": {
       "title": "ContactMessage",
@@ -258,6 +298,10 @@
     "/repairTracking/{trackingId}": {
       "schema": { "$ref": "#/entities/RepairTracking" },
       "description": "Non-PII repair status projection keyed by hashed Enquiry ID + mobile number."
+    },
+    "/paymentSubmissions/{paymentId}": {
+      "schema": { "$ref": "#/entities/PaymentSubmission" },
+      "description": "Customer Razorpay and manual UPI/Bank payment submissions."
     },
     "/contactMessages/{messageId}": {
       "schema": { "$ref": "#/entities/ContactMessage" },

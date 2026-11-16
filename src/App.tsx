@@ -13,6 +13,7 @@ import { ServicesPage } from './pages/ServicesPage';
 import { ModelsPage } from './pages/ModelsPage';
 import { BookRepairPage } from './pages/BookRepairPage';
 import { TrackRepairPage } from './pages/TrackRepairPage';
+import { PayRepairPage } from './pages/PayRepairPage';
 import { AboutPage } from './pages/AboutPage';
 import { BlogPage } from './pages/BlogPage';
 import { BlogPostPage } from './pages/BlogPostPage';
@@ -88,7 +89,8 @@ function AppShell() {
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/models" element={<ModelsPage />} />
           <Route path="/book" element={<BookRepairPage onNotify={notify} />} />
-          <Route path="/track" element={<TrackRepairPage />} />
+          <Route path="/track" element={<TrackRepairPage onNotify={notify} />} />
+          <Route path="/pay" element={<PayRepairPage onNotify={notify} />} />
           <Route path="/reviews" element={<ReviewsPage onNotify={notify} />} />
           <Route path="/faq" element={<FaqPage />} />
           <Route path="/about" element={<AboutPage />} />

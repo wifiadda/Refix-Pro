@@ -303,6 +303,59 @@ export function AdminPageContentTab({
             />
           </div>
 
+          <div className="p-4 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA] space-y-3">
+            <p className="text-xs font-bold text-[#1D1D1F]">
+              Footer & Site Social Media Links (Leave blank to hide an icon)
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold mb-1">Instagram</label>
+                <input
+                  type="url"
+                  value={form.socialInstagram || ''}
+                  onChange={(e) => setForm({ ...form, socialInstagram: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-lg border border-[#D2D2D7] bg-white text-xs font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold mb-1">Facebook</label>
+                <input
+                  type="url"
+                  value={form.socialFacebook || ''}
+                  onChange={(e) => setForm({ ...form, socialFacebook: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-lg border border-[#D2D2D7] bg-white text-xs font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold mb-1">YouTube</label>
+                <input
+                  type="url"
+                  value={form.socialYoutube || ''}
+                  onChange={(e) => setForm({ ...form, socialYoutube: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-lg border border-[#D2D2D7] bg-white text-xs font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold mb-1">X / Twitter</label>
+                <input
+                  type="url"
+                  value={form.socialTwitter || ''}
+                  onChange={(e) => setForm({ ...form, socialTwitter: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-lg border border-[#D2D2D7] bg-white text-xs font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold mb-1">LinkedIn</label>
+                <input
+                  type="url"
+                  value={form.socialLinkedin || ''}
+                  onChange={(e) => setForm({ ...form, socialLinkedin: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-lg border border-[#D2D2D7] bg-white text-xs font-mono"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-3 border-t border-[#E5E5EA]">
             {/* Quick Links */}
             <div className="space-y-3">

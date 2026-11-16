@@ -631,6 +631,70 @@ export function AdminSettingsAndUsersTab({
             className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] text-sm"
           />
         </div>
+
+        {/* Social Media Channels (Editable by Admin) */}
+        <div className="p-4 sm:p-5 rounded-xl bg-[#F5F5F7]/70 border border-[#E5E5EA] space-y-3">
+          <div>
+            <h3 className="text-sm font-bold text-[#1D1D1F]">
+              Social Media Links (Footer, Contact & Home)
+            </h3>
+            <p className="text-xs text-[#6E6E73]">
+              Paste your official profile URLs below, or leave any field blank to hide that social icon.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-semibold mb-1">Instagram URL</label>
+              <input
+                type="url"
+                value={form.socialInstagram || ''}
+                onChange={(e) => setForm({ ...form, socialInstagram: e.target.value })}
+                placeholder="https://instagram.com/refixpro.in"
+                className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1">Facebook URL</label>
+              <input
+                type="url"
+                value={form.socialFacebook || ''}
+                onChange={(e) => setForm({ ...form, socialFacebook: e.target.value })}
+                placeholder="https://facebook.com/refixpro.in"
+                className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1">YouTube URL</label>
+              <input
+                type="url"
+                value={form.socialYoutube || ''}
+                onChange={(e) => setForm({ ...form, socialYoutube: e.target.value })}
+                placeholder="https://youtube.com/@refixpro"
+                className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1">X / Twitter URL</label>
+              <input
+                type="url"
+                value={form.socialTwitter || ''}
+                onChange={(e) => setForm({ ...form, socialTwitter: e.target.value })}
+                placeholder="https://x.com/refixpro_in"
+                className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1">LinkedIn URL</label>
+              <input
+                type="url"
+                value={form.socialLinkedin || ''}
+                onChange={(e) => setForm({ ...form, socialLinkedin: e.target.value })}
+                placeholder="https://linkedin.com/company/refixpro"
+                className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs font-mono"
+              />
+            </div>
+          </div>
+        </div>
       </form>
 
       {/* Gallery Management */}

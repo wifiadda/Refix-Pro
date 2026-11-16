@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { MapPin, Phone, MessageCircle, Clock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { buildTelHref, buildWhatsAppUrl } from '../utils/whatsapp';
+import { SocialLinksBar } from './SocialLinksBar';
 
 export function Footer() {
   const { settings } = useApp();
@@ -40,6 +41,10 @@ export function Footer() {
             <p className="text-xs font-medium text-[#D2D2D7]">
               {settings.footerTagline || 'Your MacBook Deserves Expert Care. Trust Refix Pro.'}
             </p>
+            <div className="pt-2 space-y-2">
+              <p className="text-xs font-semibold text-white">Follow Refix Pro</p>
+              <SocialLinksBar settings={settings} variant="dark" size="sm" />
+            </div>
           </div>
 
           {/* Quick Links */}
@@ -113,6 +118,7 @@ export function Footer() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <Link to="/pay" className="hover:text-white transition-colors whitespace-nowrap text-[#60A5FA]">Pay Online</Link>
             <Link to="/dashboard" className="hover:text-white transition-colors whitespace-nowrap text-[#60A5FA]">Customer Dashboard</Link>
             <Link to="/privacy-policy" className="hover:text-white transition-colors whitespace-nowrap">Privacy Policy</Link>
             <Link to="/terms-and-conditions" className="hover:text-white transition-colors whitespace-nowrap">Terms & Conditions</Link>

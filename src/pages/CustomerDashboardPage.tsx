@@ -5,6 +5,7 @@ import {
   Calendar,
   CheckCircle2,
   ClipboardList,
+  CreditCard,
   LogIn,
   LogOut,
   MessageCircle,
@@ -18,6 +19,7 @@ import { useApp } from '../context/AppContext';
 import { useSeoMeta } from '../utils/seo';
 import { buildWhatsAppUrl } from '../utils/whatsapp';
 import { TrackRepairTool } from '../components/TrackRepairTool';
+import { RepairPaymentPanel } from '../components/RepairPaymentPanel';
 import type { EnquiryStatus } from '../types';
 
 const STATUS_PROGRESS: EnquiryStatus[] = [
@@ -63,12 +65,14 @@ export function CustomerDashboardPage({
     customerLogout,
     customerEnquiries,
     customerMessages,
+    customerPayments,
     customerLoading,
     refreshCustomerData,
     settings,
   } = useApp();
 
   const [signingIn, setSigningIn] = useState(false);
+  const [payingEnquiryId, setPayingEnquiryId] = useState<string | null>(null);
 
   useSeoMeta({
     title: 'Customer Dashboard – Track Repairs & Admin Replies | Refix Pro',
@@ -155,7 +159,7 @@ export function CustomerDashboardPage({
             </div>
 
             <div className="lg:col-span-6">
-              <TrackRepairTool />
+              <TrackRepairTool onNotify={onNotify} />
             </div>
           </div>
         </div>
@@ -205,6 +209,13 @@ export function CustomerDashboardPage({
               <RefreshCw className={`w-3.5 h-3.5 ${customerLoading ? 'animate-spin' : ''}`} />
               Refresh Updates
             </button>
+            <Link
+              to="/pay"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#0066CC] text-[#0066CC] hover:bg-[#0066CC]/5 text-xs font-semibold whitespace-nowrap"
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              Pay Bill Online
+            </Link>
             <Link
               to="/book"
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] text-white text-xs font-semibold whitespace-nowrap"
@@ -398,6 +409,69 @@ export function CustomerDashboardPage({
                         </div>
                       )}
 
+                      {/* Billing & Online/Manual Payment Section */}
+                      {!isCancelled && (
+                        <div className="space-y-3 pt-1">
+                          <div className="p-3.5 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA] flex flex-wrap items-center justify-between gap-3 text-xs">
+                            <div>
+                              <p className="text-[#6E6E73]">
+                                Payment Status:{' '}
+                                <span
+                                  className={`font-semibold ${
+                                    enq.paymentStatus === 'Paid'
+                                      ? 'text-emerald-700'
+                                      : enq.paymentStatus === 'Pending Verification'
+                                        ? 'text-amber-700'
+                                        : 'text-[#1D1D1F]'
+                                  }`}
+                                >
+                                  {enq.paymentStatus || 'Unpaid'}
+                                </span>
+                                {enq.paymentReference ? ` · Ref: ${enq.paymentReference}` : ''}
+                              </p>
+                              <p className="font-mono font-bold text-[#1D1D1F] mt-0.5 tabular-nums">
+                                {enq.payableAmount && enq.payableAmount > 0
+                                  ? `Final Payable Amount: ₹${enq.payableAmount.toLocaleString('en-IN')}`
+                                  : 'Payable bill amount will appear once finalized'}
+                              </p>
+                            </div>
+
+                            {enq.paymentStatus !== 'Paid' && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPayingEnquiryId((prev) => (prev === enq.id ? null : enq.id))
+                                }
+                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] text-white text-xs font-semibold whitespace-nowrap"
+                              >
+                                <CreditCard className="w-3.5 h-3.5" />
+                                {payingEnquiryId === enq.id
+                                  ? 'Close Payment Box'
+                                  : 'Pay Now (Razorpay / UPI)'}
+                              </button>
+                            )}
+                          </div>
+
+                          {payingEnquiryId === enq.id && (
+                            <RepairPaymentPanel
+                              compact
+                              enquiryId={enq.id}
+                              enquiryCode={enq.enquiryCode}
+                              customerName={enq.customerName || user.displayName || ''}
+                              mobile={enq.mobile}
+                              email={enq.email || user.email || ''}
+                              defaultAmount={enq.payableAmount || 0}
+                              allowCustomAmount={!enq.payableAmount || enq.payableAmount <= 0}
+                              paymentStatus={enq.paymentStatus || 'Unpaid'}
+                              existingReference={enq.paymentReference || ''}
+                              deviceLabel={enq.macbookModel}
+                              onSuccess={(msg) => onNotify('success', msg)}
+                              onError={(msg) => onNotify('error', msg)}
+                            />
+                          )}
+                        </div>
+                      )}
+
                       <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#E5E5EA]">
                         <span className="text-[11px] text-[#6E6E73]">
                           Desk: {settings.address}
@@ -500,9 +574,46 @@ export function CustomerDashboardPage({
               </div>
             )}
 
+            {customerPayments.length > 0 && (
+              <div className="space-y-3 pt-2">
+                <h3 className="text-base font-bold text-[#1D1D1F] flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-[#0066CC]" />
+                  My Submitted Payment Receipts
+                </h3>
+                <div className="space-y-2.5">
+                  {customerPayments.map((pay) => (
+                    <div
+                      key={pay.id}
+                      className="p-4 rounded-xl bg-white border border-[#E5E5EA] flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-mono font-bold text-[#1D1D1F] truncate">
+                          {pay.enquiryCode} · ₹{pay.amount.toLocaleString('en-IN')}
+                        </p>
+                        <p className="text-[#6E6E73] truncate">
+                          {pay.method} · Ref: <span className="font-mono">{pay.transactionRef}</span>
+                        </p>
+                      </div>
+                      <span
+                        className={`font-semibold shrink-0 ${
+                          pay.status === 'Verified Paid'
+                            ? 'text-emerald-700'
+                            : pay.status === 'Rejected'
+                              ? 'text-red-600'
+                              : 'text-amber-700'
+                        }`}
+                      >
+                        {pay.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Quick Tracking Box for older guest bookings */}
             <div className="pt-2">
-              <TrackRepairTool compact />
+              <TrackRepairTool compact onNotify={onNotify} />
             </div>
           </section>
         </div>

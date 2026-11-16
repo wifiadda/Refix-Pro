@@ -5,16 +5,19 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Clock,
+  CreditCard,
   MessageCircle,
   Phone,
   Search,
   Wrench,
   XCircle,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { normalizeMobileKey } from '../lib/firebase';
 import type { EnquiryStatus, RepairTrackingRecord } from '../types';
 import { buildTelHref, buildWhatsAppUrl } from '../utils/whatsapp';
+import { RepairPaymentPanel } from './RepairPaymentPanel';
 
 const REPAIR_PIPELINE: {
   status: EnquiryStatus;
@@ -54,18 +57,21 @@ export function TrackRepairTool({
   initialCode = '',
   initialMobile = '',
   compact = false,
+  onNotify,
 }: {
   initialCode?: string;
   initialMobile?: string;
   compact?: boolean;
+  onNotify?: (type: 'success' | 'error', message: string) => void;
 }) {
-  const { trackRepairEnquiry, settings } = useApp();
+  const { trackRepairEnquiry, settings, user } = useApp();
   const [enquiryCode, setEnquiryCode] = useState(initialCode);
   const [mobile, setMobile] = useState(initialMobile);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [result, setResult] = useState<RepairTrackingRecord | null>(null);
+  const [showPaymentBox, setShowPaymentBox] = useState(false);
 
   const runLookup = async (codeVal: string, mobileVal: string) => {
     const cleanCode = codeVal.trim().toUpperCase();
@@ -92,9 +98,16 @@ export function TrackRepairTool({
       if (!record) {
         setResult(null);
         setNotFound(true);
+        setShowPaymentBox(false);
       } else {
         setResult(record);
         setNotFound(false);
+        setShowPaymentBox(
+          Boolean(
+            (record.payableAmount && record.payableAmount > 0 && record.paymentStatus !== 'Paid') ||
+              record.status === 'Ready for Delivery'
+          )
+        );
       }
     } catch (err) {
       console.error('Track enquiry error:', err);
@@ -342,6 +355,71 @@ export function TrackRepairTool({
                   {result.publicUpdateNote}
                 </p>
               </div>
+            </div>
+          )}
+
+          {/* Payment Summary & Inline Checkout Option */}
+          {!isCancelled && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA] flex flex-wrap items-center justify-between gap-3">
+                <div className="space-y-0.5 text-xs">
+                  <p className="text-[#6E6E73]">
+                    Repair Billing ·{' '}
+                    <span
+                      className={`font-semibold ${
+                        result.paymentStatus === 'Paid'
+                          ? 'text-emerald-700'
+                          : result.paymentStatus === 'Pending Verification'
+                            ? 'text-amber-700'
+                            : 'text-[#1D1D1F]'
+                      }`}
+                    >
+                      {result.paymentStatus || 'Unpaid'}
+                    </span>
+                  </p>
+                  <p className="text-sm font-mono font-bold text-[#1D1D1F] tabular-nums">
+                    {result.payableAmount && result.payableAmount > 0
+                      ? `Payable Invoice: ₹${result.payableAmount.toLocaleString('en-IN')}`
+                      : 'Final bill amount updated once repair completes'}
+                  </p>
+                </div>
+
+                {result.paymentStatus !== 'Paid' && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowPaymentBox((prev) => !prev)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] text-white text-xs font-semibold whitespace-nowrap"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      {showPaymentBox ? 'Hide Payment Options' : 'Pay Now (Razorpay / UPI)'}
+                    </button>
+                    <Link
+                      to={`/pay?code=${encodeURIComponent(result.enquiryCode)}&mobile=${encodeURIComponent(mobile)}`}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#D2D2D7] bg-white hover:bg-[#F5F5F7] text-[#1D1D1F] text-xs font-semibold whitespace-nowrap"
+                    >
+                      Open Payment Page
+                    </Link>
+                  </div>
+                )}
+              </div>
+
+              {showPaymentBox && (
+                <RepairPaymentPanel
+                  compact
+                  enquiryCode={result.enquiryCode}
+                  customerName={user?.displayName || ''}
+                  mobile={mobile}
+                  email={user?.email || ''}
+                  defaultAmount={result.payableAmount || 0}
+                  allowCustomAmount={!result.payableAmount || result.payableAmount <= 0}
+                  paymentStatus={result.paymentStatus || 'Unpaid'}
+                  existingReference={result.paymentReference || ''}
+                  deviceLabel={result.macbookModel}
+                  onSuccess={(msg) => onNotify?.('success', msg)}
+                  onError={(msg) => onNotify?.('error', msg)}
+                />
+              )}
             </div>
           )}
 

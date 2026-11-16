@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ClipboardList,
+  CreditCard,
   Database,
   FileText,
   Laptop,
@@ -18,6 +19,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { useSeoMeta } from '../utils/seo';
 import { AdminEnquiriesTab } from '../components/admin/AdminEnquiriesTab';
+import { AdminPaymentsTab } from '../components/admin/AdminPaymentsTab';
 import { AdminServicesAndModelsTab } from '../components/admin/AdminServicesAndModelsTab';
 import { AdminBlogTab } from '../components/admin/AdminBlogTab';
 import { AdminMessagesReviewsTab } from '../components/admin/AdminMessagesReviewsTab';
@@ -27,6 +29,7 @@ import { AdminPageContentTab } from '../components/admin/AdminPageContentTab';
 type AdminTab =
   | 'overview'
   | 'enquiries'
+  | 'payments'
   | 'services'
   | 'models'
   | 'blogs'
@@ -167,6 +170,7 @@ export function AdminPage({
   const navItems: { id: AdminTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'enquiries', label: 'Repair Enquiries', icon: ClipboardList },
+    { id: 'payments', label: 'Payments & Razorpay', icon: CreditCard },
     { id: 'services', label: 'Services', icon: Wrench },
     { id: 'models', label: 'MacBook, iPad & iPhone', icon: Laptop },
     { id: 'blogs', label: 'Blog CMS', icon: FileText },
@@ -326,6 +330,7 @@ export function AdminPage({
         )}
 
         {activeTab === 'enquiries' && <AdminEnquiriesTab onNotify={onNotify} />}
+        {activeTab === 'payments' && <AdminPaymentsTab onNotify={onNotify} />}
         {activeTab === 'services' && <AdminServicesAndModelsTab mode="services" onNotify={onNotify} />}
         {activeTab === 'models' && <AdminServicesAndModelsTab mode="models" onNotify={onNotify} />}
         {activeTab === 'blogs' && <AdminBlogTab onNotify={onNotify} />}

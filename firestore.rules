@@ -36,8 +36,10 @@ service cloud.firestore {
 
     function isAdmin() {
       return isVerifiedUser() && (
-        request.auth.token.email == 'refixpro.in@gmail.com' ||
-        request.auth.token.email == 'wifiadda76@gmail.com' ||
+        ('email' in request.auth.token && request.auth.token.email is string && (
+          request.auth.token.email.lower() == 'refixpro.in@gmail.com' ||
+          request.auth.token.email.lower() == 'wifiadda76@gmail.com'
+        )) ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
     }
@@ -66,7 +68,9 @@ service cloud.firestore {
           'logoUrl', 'heroHeadline', 'heroSubheadline', 'heroImageUrl', 'heroSlides',
           'headerCtaText', 'headerCtaUrl', 'navLinks',
           'footerDescription', 'footerTagline', 'footerLegalText', 'footerQuickLinks', 'footerServiceLinks',
-          'socialInstagram', 'socialFacebook',
+          'socialInstagram', 'socialFacebook', 'socialYoutube', 'socialLinkedin', 'socialTwitter',
+          'razorpayEnabled', 'razorpayKeyId', 'razorpayPaymentLinkUrl',
+          'manualPaymentEnabled', 'manualUpiId', 'manualUpiQrUrl', 'manualBankDetails', 'manualPaymentNote',
           'seoTitle', 'seoDescription', 'seoKeywords', 'serviceAreasText',
           'homeFaqs', 'pageContent', 'updatedAt'
         ])
@@ -97,6 +101,17 @@ service cloud.firestore {
         && (!('footerServiceLinks' in data) || (data.footerServiceLinks is list && data.footerServiceLinks.size() <= 12 && (data.footerServiceLinks.size() == 0 || (data.footerServiceLinks[0] is map && data.footerServiceLinks[0].label is string && data.footerServiceLinks[0].to is string))))
         && (!('socialInstagram' in data) || (data.socialInstagram is string && data.socialInstagram.size() <= 300))
         && (!('socialFacebook' in data) || (data.socialFacebook is string && data.socialFacebook.size() <= 300))
+        && (!('socialYoutube' in data) || (data.socialYoutube is string && data.socialYoutube.size() <= 300))
+        && (!('socialLinkedin' in data) || (data.socialLinkedin is string && data.socialLinkedin.size() <= 300))
+        && (!('socialTwitter' in data) || (data.socialTwitter is string && data.socialTwitter.size() <= 300))
+        && (!('razorpayEnabled' in data) || data.razorpayEnabled is bool)
+        && (!('razorpayKeyId' in data) || (data.razorpayKeyId is string && data.razorpayKeyId.size() <= 120))
+        && (!('razorpayPaymentLinkUrl' in data) || (data.razorpayPaymentLinkUrl is string && data.razorpayPaymentLinkUrl.size() <= 400))
+        && (!('manualPaymentEnabled' in data) || data.manualPaymentEnabled is bool)
+        && (!('manualUpiId' in data) || (data.manualUpiId is string && data.manualUpiId.size() <= 160))
+        && (!('manualUpiQrUrl' in data) || (data.manualUpiQrUrl is string && data.manualUpiQrUrl.size() <= 300000))
+        && (!('manualBankDetails' in data) || (data.manualBankDetails is string && data.manualBankDetails.size() <= 600))
+        && (!('manualPaymentNote' in data) || (data.manualPaymentNote is string && data.manualPaymentNote.size() <= 500))
         && (!('seoTitle' in data) || (data.seoTitle is string && data.seoTitle.size() <= 120))
         && (!('seoDescription' in data) || (data.seoDescription is string && data.seoDescription.size() <= 300))
         && (!('seoKeywords' in data) || (data.seoKeywords is string && data.seoKeywords.size() <= 600))
@@ -161,7 +176,9 @@ service cloud.firestore {
           'macbookModel', 'macbookYear', 'processorType', 'serviceName',
           'problemDescription', 'preferredContactMethod', 'preferredVisitDate',
           'additionalNotes', 'imageUrls', 'status', 'technicianNotes',
-          'repairEstimate', 'followUpDate', 'createdAt', 'updatedAt'
+          'repairEstimate', 'followUpDate',
+          'payableAmount', 'paymentStatus', 'paymentMethod', 'paymentReference', 'paidAt',
+          'createdAt', 'updatedAt'
         ])
         && (!('userId' in data) || (data.userId is string && data.userId.size() <= 128))
         && data.enquiryCode is string && data.enquiryCode.size() >= 4 && data.enquiryCode.size() <= 32 && data.enquiryCode.matches('^RP-[A-Z0-9\\-]+$')
@@ -182,6 +199,11 @@ service cloud.firestore {
         && data.technicianNotes is string && data.technicianNotes.size() <= 2000
         && data.repairEstimate is string && data.repairEstimate.size() <= 120
         && data.followUpDate is string && data.followUpDate.size() <= 40
+        && (!('payableAmount' in data) || (data.payableAmount is number && data.payableAmount >= 0 && data.payableAmount <= 500000))
+        && (!('paymentStatus' in data) || (data.paymentStatus in ['Unpaid', 'Pending Verification', 'Paid']))
+        && (!('paymentMethod' in data) || (data.paymentMethod is string && data.paymentMethod.size() <= 60))
+        && (!('paymentReference' in data) || (data.paymentReference is string && data.paymentReference.size() <= 140))
+        && (!('paidAt' in data) || (data.paidAt is string && data.paidAt.size() <= 60))
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -193,7 +215,9 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'enquiryCode', 'macbookModel', 'serviceName', 'status',
-          'repairEstimate', 'followUpDate', 'publicUpdateNote', 'updatedAt'
+          'repairEstimate', 'followUpDate', 'publicUpdateNote',
+          'payableAmount', 'paymentStatus', 'paymentMethod', 'paymentReference', 'paidAt',
+          'updatedAt'
         ])
         && data.enquiryCode is string && data.enquiryCode.size() >= 4 && data.enquiryCode.size() <= 32 && data.enquiryCode.matches('^RP-[A-Z0-9\\-]+$')
         && data.macbookModel is string && data.macbookModel.size() >= 2 && data.macbookModel.size() <= 140
@@ -202,7 +226,33 @@ service cloud.firestore {
         && data.repairEstimate is string && data.repairEstimate.size() <= 120
         && data.followUpDate is string && data.followUpDate.size() <= 40
         && data.publicUpdateNote is string && data.publicUpdateNote.size() <= 500
+        && (!('payableAmount' in data) || (data.payableAmount is number && data.payableAmount >= 0 && data.payableAmount <= 500000))
+        && (!('paymentStatus' in data) || (data.paymentStatus in ['Unpaid', 'Pending Verification', 'Paid']))
+        && (!('paymentMethod' in data) || (data.paymentMethod is string && data.paymentMethod.size() <= 60))
+        && (!('paymentReference' in data) || (data.paymentReference is string && data.paymentReference.size() <= 140))
+        && (!('paidAt' in data) || (data.paidAt is string && data.paidAt.size() <= 60))
         && data.updatedAt is timestamp;
+    }
+
+    function isValidPaymentSubmission(data) {
+      return data.keys().hasAll([
+          'enquiryCode', 'customerName', 'mobile', 'amount', 'method', 'transactionRef', 'status', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'userId', 'enquiryCode', 'customerName', 'mobile', 'amount', 'method',
+          'transactionRef', 'notes', 'status', 'createdAt', 'verifiedAt'
+        ])
+        && (!('userId' in data) || (data.userId is string && data.userId.size() <= 128))
+        && data.enquiryCode is string && data.enquiryCode.size() >= 3 && data.enquiryCode.size() <= 40
+        && data.customerName is string && data.customerName.size() >= 2 && data.customerName.size() <= 120
+        && data.mobile is string && data.mobile.size() >= 7 && data.mobile.size() <= 25
+        && data.amount is number && data.amount > 0 && data.amount <= 500000
+        && data.method in ['Razorpay', 'Manual UPI / Bank']
+        && data.transactionRef is string && data.transactionRef.size() >= 4 && data.transactionRef.size() <= 140
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 400))
+        && data.status in ['Pending Verification', 'Verified Paid', 'Rejected']
+        && (!('verifiedAt' in data) || (data.verifiedAt is string && data.verifiedAt.size() <= 60))
+        && data.createdAt is timestamp;
     }
 
     function isValidContactMessage(data) {
@@ -317,13 +367,27 @@ service cloud.firestore {
         && isAdmin()
         && isValidWebsiteSettings(incoming())
         && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly([
+        && incoming().diff(existing()).addedKeys().hasOnly([
           'businessName', 'tagline', 'phone', 'whatsapp', 'email', 'websiteUrl',
           'address', 'businessHours', 'googleRating', 'googleReviewCount', 'googlePlaceId', 'googleReviewsUrl',
           'logoUrl', 'heroHeadline', 'heroSubheadline', 'heroImageUrl', 'heroSlides',
           'headerCtaText', 'headerCtaUrl', 'navLinks',
           'footerDescription', 'footerTagline', 'footerLegalText', 'footerQuickLinks', 'footerServiceLinks',
-          'socialInstagram', 'socialFacebook',
+          'socialInstagram', 'socialFacebook', 'socialYoutube', 'socialLinkedin', 'socialTwitter',
+          'razorpayEnabled', 'razorpayKeyId', 'razorpayPaymentLinkUrl',
+          'manualPaymentEnabled', 'manualUpiId', 'manualUpiQrUrl', 'manualBankDetails', 'manualPaymentNote',
+          'seoTitle', 'seoDescription', 'seoKeywords', 'serviceAreasText',
+          'homeFaqs', 'pageContent', 'updatedAt'
+        ])
+        && incoming().diff(existing()).changedKeys().hasOnly([
+          'businessName', 'tagline', 'phone', 'whatsapp', 'email', 'websiteUrl',
+          'address', 'businessHours', 'googleRating', 'googleReviewCount', 'googlePlaceId', 'googleReviewsUrl',
+          'logoUrl', 'heroHeadline', 'heroSubheadline', 'heroImageUrl', 'heroSlides',
+          'headerCtaText', 'headerCtaUrl', 'navLinks',
+          'footerDescription', 'footerTagline', 'footerLegalText', 'footerQuickLinks', 'footerServiceLinks',
+          'socialInstagram', 'socialFacebook', 'socialYoutube', 'socialLinkedin', 'socialTwitter',
+          'razorpayEnabled', 'razorpayKeyId', 'razorpayPaymentLinkUrl',
+          'manualPaymentEnabled', 'manualUpiId', 'manualUpiQrUrl', 'manualBankDetails', 'manualPaymentNote',
           'seoTitle', 'seoDescription', 'seoKeywords', 'serviceAreasText',
           'homeFaqs', 'pageContent', 'updatedAt'
         ]);
@@ -342,7 +406,11 @@ service cloud.firestore {
         && isAdmin()
         && isValidService(incoming())
         && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly([
+        && incoming().diff(existing()).addedKeys().hasOnly([
+          'title', 'slug', 'category', 'shortDescription', 'repairInfo',
+          'symptoms', 'imageUrl', 'priceDisplay', 'showPrice', 'isActive', 'sortOrder', 'updatedAt'
+        ])
+        && incoming().diff(existing()).changedKeys().hasOnly([
           'title', 'slug', 'category', 'shortDescription', 'repairInfo',
           'symptoms', 'imageUrl', 'priceDisplay', 'showPrice', 'isActive', 'sortOrder', 'updatedAt'
         ]);
@@ -361,7 +429,11 @@ service cloud.firestore {
         && isAdmin()
         && isValidMacBookModel(incoming())
         && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly([
+        && incoming().diff(existing()).addedKeys().hasOnly([
+          'category', 'name', 'yearRange', 'processor', 'modelIdentifiers',
+          'commonIssues', 'availabilityNote', 'isActive', 'updatedAt'
+        ])
+        && incoming().diff(existing()).changedKeys().hasOnly([
           'category', 'name', 'yearRange', 'processor', 'modelIdentifiers',
           'commonIssues', 'availabilityNote', 'isActive', 'updatedAt'
         ]);
@@ -388,14 +460,21 @@ service cloud.firestore {
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
       allow update: if isValidId(enquiryId)
-        && isAdmin()
         && isValidRepairEnquiry(incoming())
         && incoming().enquiryCode == existing().enquiryCode
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
         && (
-          (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'technicianNotes', 'repairEstimate', 'followUpDate', 'updatedAt'])) ||
-          (incoming().diff(existing()).affectedKeys().hasOnly(['customerName', 'mobile', 'whatsapp', 'email', 'macbookModel', 'macbookYear', 'processorType', 'serviceName', 'problemDescription', 'preferredContactMethod', 'preferredVisitDate', 'additionalNotes', 'status', 'technicianNotes', 'repairEstimate', 'followUpDate', 'updatedAt']))
+          (isAdmin() && (
+            (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'technicianNotes', 'repairEstimate', 'followUpDate', 'payableAmount', 'paymentStatus', 'paymentMethod', 'paymentReference', 'paidAt', 'updatedAt'])) ||
+            (incoming().diff(existing()).affectedKeys().hasOnly(['customerName', 'mobile', 'whatsapp', 'email', 'macbookModel', 'macbookYear', 'processorType', 'serviceName', 'problemDescription', 'preferredContactMethod', 'preferredVisitDate', 'additionalNotes', 'status', 'technicianNotes', 'repairEstimate', 'followUpDate', 'payableAmount', 'paymentStatus', 'paymentMethod', 'paymentReference', 'paidAt', 'updatedAt']))
+          )) ||
+          (isSignedIn() && existing().userId == request.auth.uid
+            && (!('paymentStatus' in existing()) || existing().paymentStatus != 'Paid')
+            && incoming().status == existing().status
+            && incoming().paymentStatus == 'Pending Verification'
+            && incoming().diff(existing()).addedKeys().hasOnly(['paymentStatus', 'paymentMethod', 'paymentReference', 'paidAt', 'updatedAt'])
+            && incoming().diff(existing()).changedKeys().hasOnly(['paymentStatus', 'paymentMethod', 'paymentReference', 'paidAt', 'updatedAt']))
         );
       allow delete: if isValidId(enquiryId) && isAdmin();
     }
@@ -416,10 +495,35 @@ service cloud.firestore {
         && isValidRepairTracking(incoming())
         && incoming().enquiryCode == existing().enquiryCode
         && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly([
-          'macbookModel', 'serviceName', 'status', 'repairEstimate', 'followUpDate', 'publicUpdateNote', 'updatedAt'
+        && incoming().diff(existing()).addedKeys().hasOnly([
+          'macbookModel', 'serviceName', 'status', 'repairEstimate', 'followUpDate', 'publicUpdateNote',
+          'payableAmount', 'paymentStatus', 'paymentMethod', 'paymentReference', 'paidAt', 'updatedAt'
+        ])
+        && incoming().diff(existing()).changedKeys().hasOnly([
+          'macbookModel', 'serviceName', 'status', 'repairEstimate', 'followUpDate', 'publicUpdateNote',
+          'payableAmount', 'paymentStatus', 'paymentMethod', 'paymentReference', 'paidAt', 'updatedAt'
         ]);
       allow delete: if isValidId(trackingId) && isAdmin();
+    }
+
+    // Payment Submissions (Razorpay / Manual UPI / Bank payment confirmations)
+    match /paymentSubmissions/{paymentId} {
+      allow get: if isValidId(paymentId) && (
+        isAdmin() ||
+        (isSignedIn() && existing().userId == request.auth.uid)
+      );
+      allow list: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
+      allow create: if isValidId(paymentId)
+        && isValidPaymentSubmission(incoming())
+        && (!('userId' in incoming()) || incoming().userId == '' || (isSignedIn() && incoming().userId == request.auth.uid))
+        && incoming().status == 'Pending Verification'
+        && incoming().createdAt == request.time;
+      allow update: if isValidId(paymentId)
+        && isAdmin()
+        && isValidPaymentSubmission(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'verifiedAt', 'notes']);
+      allow delete: if isValidId(paymentId) && isAdmin();
     }
 
     // Contact Messages (Private PII - Admin or signed-in owner read; Admin reply/read/delete; Public create)
@@ -459,7 +563,8 @@ service cloud.firestore {
         && isAdmin()
         && isValidBlogCategory(incoming())
         && incoming().createdAt == existing().createdAt
-        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'slug', 'description']);
+        && incoming().diff(existing()).addedKeys().hasOnly(['name', 'slug', 'description'])
+        && incoming().diff(existing()).changedKeys().hasOnly(['name', 'slug', 'description']);
       allow delete: if isValidId(categoryId) && isAdmin();
     }
 
@@ -477,7 +582,12 @@ service cloud.firestore {
         && isValidBlogPost(incoming())
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly([
+        && incoming().diff(existing()).addedKeys().hasOnly([
+          'title', 'slug', 'category', 'excerpt', 'content', 'featuredImage',
+          'authorName', 'status', 'publishedAt', 'seoTitle', 'seoDescription',
+          'tags', 'faqs', 'isFeatured', 'views', 'updatedAt'
+        ])
+        && incoming().diff(existing()).changedKeys().hasOnly([
           'title', 'slug', 'category', 'excerpt', 'content', 'featuredImage',
           'authorName', 'status', 'publishedAt', 'seoTitle', 'seoDescription',
           'tags', 'faqs', 'isFeatured', 'views', 'updatedAt'
@@ -500,7 +610,10 @@ service cloud.firestore {
         && isAdmin()
         && isValidReview(incoming())
         && incoming().createdAt == existing().createdAt
-        && incoming().diff(existing()).affectedKeys().hasOnly([
+        && incoming().diff(existing()).addedKeys().hasOnly([
+          'authorLabel', 'rating', 'quote', 'source', 'dateLabel', 'isVisible'
+        ])
+        && incoming().diff(existing()).changedKeys().hasOnly([
           'authorLabel', 'rating', 'quote', 'source', 'dateLabel', 'isVisible'
         ]);
       allow delete: if isValidId(reviewId) && isAdmin();
@@ -518,7 +631,10 @@ service cloud.firestore {
         && isAdmin()
         && isValidGalleryImage(incoming())
         && incoming().createdAt == existing().createdAt
-        && incoming().diff(existing()).affectedKeys().hasOnly([
+        && incoming().diff(existing()).addedKeys().hasOnly([
+          'title', 'caption', 'imageUrl', 'category', 'sortOrder'
+        ])
+        && incoming().diff(existing()).changedKeys().hasOnly([
           'title', 'caption', 'imageUrl', 'category', 'sortOrder'
         ]);
       allow delete: if isValidId(imageId) && isAdmin();

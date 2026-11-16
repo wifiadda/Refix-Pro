@@ -44,6 +44,8 @@ import type {
   GalleryImageItem,
   GoogleLiveProfile,
   MacBookModelItem,
+  PaymentMethodType,
+  PaymentSubmission,
   RepairEnquiry,
   RepairTrackingRecord,
   ReviewItem,
@@ -87,6 +89,17 @@ interface NewContactMessageInput {
   message: string;
 }
 
+interface NewPaymentSubmissionInput {
+  enquiryId?: string;
+  enquiryCode: string;
+  customerName: string;
+  mobile: string;
+  amount: number;
+  method: PaymentMethodType;
+  transactionRef: string;
+  notes?: string;
+}
+
 interface AppContextValue {
   settings: WebsiteSettings;
   services: ServiceItem[];
@@ -107,6 +120,7 @@ interface AppContextValue {
   customerLogout: () => Promise<void>;
   customerEnquiries: RepairEnquiry[];
   customerMessages: ContactMessage[];
+  customerPayments: PaymentSubmission[];
   customerLoading: boolean;
   refreshCustomerData: () => Promise<void>;
 
@@ -116,6 +130,7 @@ interface AppContextValue {
   adminBlogPosts: BlogPost[];
   adminReviews: ReviewItem[];
   enquiries: RepairEnquiry[];
+  paymentSubmissions: PaymentSubmission[];
   contactMessages: ContactMessage[];
   adminUsers: AdminUser[];
   adminLoading: boolean;
@@ -124,15 +139,22 @@ interface AppContextValue {
   refreshAdminData: () => Promise<void>;
   seedCatalogToFirestore: () => Promise<void>;
 
-  // Public submissions & tracking
+  // Public submissions & tracking & payments
   submitRepairEnquiry: (input: NewRepairEnquiryInput) => Promise<{ enquiryId: string; enquiryCode: string }>;
   trackRepairEnquiry: (enquiryCode: string, mobile: string) => Promise<RepairTrackingRecord | null>;
+  submitRepairPayment: (input: NewPaymentSubmissionInput) => Promise<{ paymentId: string }>;
   submitContactMessage: (input: NewContactMessageInput) => Promise<void>;
   submitPublicReview: (input: { name: string; device?: string; rating: number; quote: string }) => Promise<void>;
 
   // Admin mutations
   updateEnquiry: (id: string, patch: Partial<RepairEnquiry>) => Promise<void>;
   deleteEnquiry: (id: string) => Promise<void>;
+  verifyPaymentSubmission: (
+    paymentId: string,
+    decision: 'Verified Paid' | 'Rejected',
+    notes?: string
+  ) => Promise<void>;
+  deletePaymentSubmission: (paymentId: string) => Promise<void>;
   saveService: (item: Omit<ServiceItem, 'updatedAt'>) => Promise<void>;
   deleteService: (id: string) => Promise<void>;
   saveMacBookModel: (item: Omit<MacBookModelItem, 'updatedAt'>) => Promise<void>;
@@ -208,10 +230,12 @@ function mergeWebsiteSettings(raw?: Partial<WebsiteSettings>): WebsiteSettings {
     Array.isArray(src.footerQuickLinks) && src.footerQuickLinks.length > 0
       ? src.footerQuickLinks
       : def.footerQuickLinks;
-  const hasDashboardLink = baseQuickLinks.some((l) => l.to === '/dashboard');
-  const mergedQuickLinks = hasDashboardLink
+  const withDashboardLink = baseQuickLinks.some((l) => l.to === '/dashboard')
     ? baseQuickLinks
     : [...baseQuickLinks, { label: 'Customer Dashboard', to: '/dashboard' }];
+  const mergedQuickLinks = withDashboardLink.some((l) => l.to === '/pay')
+    ? withDashboardLink
+    : [...withDashboardLink, { label: 'Pay Online', to: '/pay' }];
 
   return {
     ...def,
@@ -262,11 +286,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [adminBlogPosts, setAdminBlogPosts] = useState<BlogPost[]>(DEFAULT_BLOG_POSTS);
   const [adminReviews, setAdminReviews] = useState<ReviewItem[]>(DEFAULT_REVIEWS);
   const [enquiries, setEnquiries] = useState<RepairEnquiry[]>([]);
+  const [paymentSubmissions, setPaymentSubmissions] = useState<PaymentSubmission[]>([]);
   const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [adminLoading, setAdminLoading] = useState(false);
   const [customerEnquiries, setCustomerEnquiries] = useState<RepairEnquiry[]>([]);
   const [customerMessages, setCustomerMessages] = useState<ContactMessage[]>([]);
+  const [customerPayments, setCustomerPayments] = useState<PaymentSubmission[]>([]);
   const [customerLoading, setCustomerLoading] = useState(false);
   const [googleLiveProfile, setGoogleLiveProfile] = useState<GoogleLiveProfile>(
     DEFAULT_GOOGLE_LIVE_PROFILE
@@ -358,8 +384,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!isAdmin) return;
     setAdminLoading(true);
     try {
-      const [enqSnap, msgSnap, srvSnap, mdlSnap, postSnap, revSnap, admSnap] = await Promise.all([
+      const [enqSnap, paySnap, msgSnap, srvSnap, mdlSnap, postSnap, revSnap, admSnap] = await Promise.all([
         getDocs(collection(db, 'repairEnquiries')).catch((e) => handleFirestoreError(e, OperationType.LIST, 'repairEnquiries')),
+        getDocs(collection(db, 'paymentSubmissions')).catch((e) => handleFirestoreError(e, OperationType.LIST, 'paymentSubmissions')),
         getDocs(collection(db, 'contactMessages')).catch((e) => handleFirestoreError(e, OperationType.LIST, 'contactMessages')),
         getDocs(collection(db, 'services')).catch((e) => handleFirestoreError(e, OperationType.LIST, 'services')),
         getDocs(collection(db, 'macbookModels')).catch((e) => handleFirestoreError(e, OperationType.LIST, 'macbookModels')),
@@ -371,6 +398,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const enqList = enqSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<RepairEnquiry, 'id'>) }));
       enqList.sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
       setEnquiries(enqList);
+
+      const payList = paySnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PaymentSubmission, 'id'>) }));
+      payList.sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
+      setPaymentSubmissions(payList);
 
       const msgList = msgSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ContactMessage, 'id'>) }));
       msgList.sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
@@ -423,10 +454,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           getDocs(collection(db, 'galleryImages')),
         ]);
 
-      const existingCatIds = new Set(existingCatsSnap.docs.map((d) => d.id));
-      const existingPostIds = new Set(existingPostsSnap.docs.map((d) => d.id));
-      const existingReviewIds = new Set(existingReviewsSnap.docs.map((d) => d.id));
-      const existingGalleryIds = new Set(existingGallerySnap.docs.map((d) => d.id));
+      const existingCatCreated = new Map(
+        existingCatsSnap.docs.map((d) => [d.id, d.data()?.createdAt])
+      );
+      const existingPostCreated = new Map(
+        existingPostsSnap.docs.map((d) => [d.id, d.data()?.createdAt])
+      );
+      const existingReviewCreated = new Map(
+        existingReviewsSnap.docs.map((d) => [d.id, d.data()?.createdAt])
+      );
+      const existingGalleryCreated = new Map(
+        existingGallerySnap.docs.map((d) => [d.id, d.data()?.createdAt])
+      );
 
       const batch = writeBatch(db);
 
@@ -454,65 +493,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       for (const cat of DEFAULT_BLOG_CATEGORIES) {
         const { id, ...rest } = cat;
         const ref = doc(db, 'blogCategories', id);
-        if (existingCatIds.has(id)) {
-          batch.update(ref, {
-            name: rest.name,
-            slug: rest.slug,
-            description: rest.description || '',
-          });
-        } else {
-          batch.set(ref, {
-            ...rest,
-            createdAt: serverTimestamp(),
-          });
-        }
+        const prevCreatedAt = existingCatCreated.get(id);
+        batch.set(ref, {
+          name: rest.name,
+          slug: rest.slug,
+          description: rest.description || '',
+          createdAt: prevCreatedAt || serverTimestamp(),
+        });
       }
 
       for (const post of DEFAULT_BLOG_POSTS) {
         const { id, ...rest } = post;
         const ref = doc(db, 'blogPosts', id);
-        if (existingPostIds.has(id)) {
-          batch.update(ref, {
-            ...rest,
-            updatedAt: serverTimestamp(),
-          });
-        } else {
-          batch.set(ref, {
-            ...rest,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          });
-        }
+        const prevCreatedAt = existingPostCreated.get(id);
+        batch.set(ref, {
+          ...rest,
+          createdAt: prevCreatedAt || serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
       }
 
       for (const rev of DEFAULT_REVIEWS) {
         const { id, ...rest } = rev;
         const ref = doc(db, 'reviews', id);
-        if (existingReviewIds.has(id)) {
-          batch.update(ref, {
-            ...rest,
-          });
-        } else {
-          batch.set(ref, {
-            ...rest,
-            createdAt: serverTimestamp(),
-          });
-        }
+        const prevCreatedAt = existingReviewCreated.get(id);
+        batch.set(ref, {
+          ...rest,
+          createdAt: prevCreatedAt || serverTimestamp(),
+        });
       }
 
       for (const gal of DEFAULT_GALLERY_IMAGES) {
         const { id, ...rest } = gal;
         const ref = doc(db, 'galleryImages', id);
-        if (existingGalleryIds.has(id)) {
-          batch.update(ref, {
-            ...rest,
-          });
-        } else {
-          batch.set(ref, {
-            ...rest,
-            createdAt: serverTimestamp(),
-          });
-        }
+        const prevCreatedAt = existingGalleryCreated.get(id);
+        batch.set(ref, {
+          ...rest,
+          createdAt: prevCreatedAt || serverTimestamp(),
+        });
       }
 
       await batch.commit();
@@ -570,6 +588,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!user) {
       setCustomerEnquiries([]);
       setCustomerMessages([]);
+      setCustomerPayments([]);
       return;
     }
     setCustomerLoading(true);
@@ -580,6 +599,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const msgQueries = [
         getDocs(query(collection(db, 'contactMessages'), where('userId', '==', user.uid))),
       ];
+      const payQuery = getDocs(
+        query(collection(db, 'paymentSubmissions'), where('userId', '==', user.uid))
+      );
 
       if (user.emailVerified && user.email) {
         enqQueries.push(
@@ -590,9 +612,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         );
       }
 
-      const [enqSnaps, msgSnaps] = await Promise.all([
+      const [enqSnaps, msgSnaps, paySnapResult] = await Promise.all([
         Promise.allSettled(enqQueries),
         Promise.allSettled(msgQueries),
+        Promise.allSettled([payQuery]),
       ]);
 
       const enqMap = new Map<string, RepairEnquiry>();
@@ -620,6 +643,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         (a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt)
       );
       setCustomerMessages(mergedMsgs);
+
+      if (paySnapResult[0]?.status === 'fulfilled') {
+        const payList = paySnapResult[0].value.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<PaymentSubmission, 'id'>),
+        }));
+        payList.sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
+        setCustomerPayments(payList);
+      }
     } catch (error) {
       console.error('Customer data load error:', error);
     } finally {
@@ -639,6 +671,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } else if (authReady && !user) {
       setCustomerEnquiries([]);
       setCustomerMessages([]);
+      setCustomerPayments([]);
     }
   }, [authReady, user, refreshCustomerData]);
 
@@ -652,9 +685,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await signOut(auth);
     setIsAdmin(false);
     setEnquiries([]);
+    setPaymentSubmissions([]);
     setContactMessages([]);
     setCustomerEnquiries([]);
     setCustomerMessages([]);
+    setCustomerPayments([]);
   };
 
   const customerLogin = async () => {
@@ -667,9 +702,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await signOut(auth);
     setIsAdmin(false);
     setEnquiries([]);
+    setPaymentSubmissions([]);
     setContactMessages([]);
     setCustomerEnquiries([]);
     setCustomerMessages([]);
+    setCustomerPayments([]);
   };
 
   const submitRepairEnquiry = async (input: NewRepairEnquiryInput) => {
@@ -698,6 +735,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       technicianNotes: '',
       repairEstimate: '',
       followUpDate: '',
+      payableAmount: 0,
+      paymentStatus: 'Unpaid' as const,
+      paymentMethod: '',
+      paymentReference: '',
+      paidAt: '',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -710,6 +752,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       repairEstimate: '',
       followUpDate: '',
       publicUpdateNote: '',
+      payableAmount: 0,
+      paymentStatus: 'Unpaid' as const,
+      paymentMethod: '',
+      paymentReference: '',
+      paidAt: '',
       updatedAt: serverTimestamp(),
     };
 
@@ -747,6 +794,60 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const submitRepairPayment = async (input: NewPaymentSubmissionInput) => {
+    const paymentId = makeValidId('pay');
+    const cleanCode = (input.enquiryCode || 'MANUAL-BILL').trim().toUpperCase().slice(0, 40) || 'MANUAL-BILL';
+    const cleanRef = input.transactionRef.trim().slice(0, 140);
+    const nowLabel = new Date().toLocaleString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const payload = {
+      ...(user?.uid ? { userId: user.uid } : {}),
+      enquiryCode: cleanCode,
+      customerName: input.customerName.trim().slice(0, 120),
+      mobile: input.mobile.trim().slice(0, 25),
+      amount: Math.min(500000, Math.max(1, Math.round(Number(input.amount) || 0))),
+      method: input.method,
+      transactionRef: cleanRef,
+      notes: (input.notes || '').trim().slice(0, 400),
+      status: 'Pending Verification' as const,
+      verifiedAt: '',
+      createdAt: serverTimestamp(),
+    };
+
+    try {
+      await setDoc(doc(db, 'paymentSubmissions', paymentId), payload);
+
+      if (user && input.enquiryId) {
+        const owned = customerEnquiries.find((e) => e.id === input.enquiryId);
+        if (owned && owned.userId === user.uid && owned.paymentStatus !== 'Paid') {
+          await updateDoc(doc(db, 'repairEnquiries', input.enquiryId), {
+            paymentStatus: 'Pending Verification',
+            paymentMethod: input.method,
+            paymentReference: cleanRef,
+            paidAt: nowLabel.slice(0, 60),
+            updatedAt: serverTimestamp(),
+          });
+        }
+      }
+
+      if (user) {
+        await refreshCustomerData();
+      }
+      if (isAdmin) {
+        await refreshAdminData();
+      }
+      return { paymentId };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `paymentSubmissions/${paymentId}`);
+    }
+  };
+
   const submitContactMessage = async (input: NewContactMessageInput) => {
     const messageId = makeValidId('msg');
     const payload = {
@@ -779,6 +880,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const existingItem = enquiries.find((e) => e.id === id);
     if (!existingItem) return;
 
+    const cleanPayableAmount = Math.min(
+      500000,
+      Math.max(0, Number(patch.payableAmount ?? existingItem.payableAmount ?? 0) || 0)
+    );
+    const cleanPaymentStatus = patch.paymentStatus ?? existingItem.paymentStatus ?? 'Unpaid';
+    const cleanPaymentMethod = (patch.paymentMethod ?? existingItem.paymentMethod ?? '').slice(0, 60);
+    const cleanPaymentRef = (patch.paymentReference ?? existingItem.paymentReference ?? '').slice(0, 140);
+    const cleanPaidAt = (patch.paidAt ?? existingItem.paidAt ?? '').slice(0, 60);
+
     const payload = {
       enquiryCode: existingItem.enquiryCode,
       customerName: (patch.customerName ?? existingItem.customerName).slice(0, 120),
@@ -798,6 +908,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       technicianNotes: (patch.technicianNotes ?? existingItem.technicianNotes ?? '').slice(0, 2000),
       repairEstimate: (patch.repairEstimate ?? existingItem.repairEstimate ?? '').slice(0, 120),
       followUpDate: (patch.followUpDate ?? existingItem.followUpDate ?? '').slice(0, 40),
+      payableAmount: cleanPayableAmount,
+      paymentStatus: cleanPaymentStatus,
+      paymentMethod: cleanPaymentMethod,
+      paymentReference: cleanPaymentRef,
+      paidAt: cleanPaidAt,
       createdAt: existingItem.createdAt,
       updatedAt: serverTimestamp(),
     };
@@ -815,6 +930,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       repairEstimate: payload.repairEstimate,
       followUpDate: payload.followUpDate,
       publicUpdateNote: (payload.technicianNotes || '').slice(0, 500),
+      payableAmount: cleanPayableAmount,
+      paymentStatus: cleanPaymentStatus,
+      paymentMethod: cleanPaymentMethod,
+      paymentReference: cleanPaymentRef,
+      paidAt: cleanPaidAt,
       updatedAt: serverTimestamp(),
     };
 
@@ -842,6 +962,86 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await refreshAdminData();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `repairEnquiries/${id}`);
+    }
+  };
+
+  const verifyPaymentSubmission = async (
+    paymentId: string,
+    decision: 'Verified Paid' | 'Rejected',
+    notes?: string
+  ) => {
+    const submission = paymentSubmissions.find((p) => p.id === paymentId);
+    if (!submission) return;
+
+    const nowLabel = new Date().toLocaleString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    try {
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'paymentSubmissions', paymentId), {
+        status: decision,
+        verifiedAt: decision === 'Verified Paid' ? nowLabel.slice(0, 60) : '',
+        notes: (notes ?? submission.notes ?? '').trim().slice(0, 400),
+      });
+
+      const matchedEnquiry = enquiries.find(
+        (e) => e.enquiryCode.toUpperCase() === submission.enquiryCode.toUpperCase()
+      );
+      if (matchedEnquiry) {
+        const nextStatus = decision === 'Verified Paid' ? 'Paid' : 'Unpaid';
+        const trackingId = await computeTrackingId(
+          matchedEnquiry.enquiryCode,
+          matchedEnquiry.mobile
+        );
+        const payableAmt =
+          matchedEnquiry.payableAmount && matchedEnquiry.payableAmount > 0
+            ? matchedEnquiry.payableAmount
+            : submission.amount;
+
+        batch.update(doc(db, 'repairEnquiries', matchedEnquiry.id), {
+          payableAmount: payableAmt,
+          paymentStatus: nextStatus,
+          paymentMethod: submission.method,
+          paymentReference: submission.transactionRef,
+          paidAt: decision === 'Verified Paid' ? nowLabel.slice(0, 60) : '',
+          updatedAt: serverTimestamp(),
+        });
+
+        batch.set(doc(db, 'repairTracking', trackingId), {
+          enquiryCode: matchedEnquiry.enquiryCode,
+          macbookModel: matchedEnquiry.macbookModel,
+          serviceName: matchedEnquiry.serviceName,
+          status: matchedEnquiry.status,
+          repairEstimate: matchedEnquiry.repairEstimate || '',
+          followUpDate: matchedEnquiry.followUpDate || '',
+          publicUpdateNote: (matchedEnquiry.technicianNotes || '').slice(0, 500),
+          payableAmount: payableAmt,
+          paymentStatus: nextStatus,
+          paymentMethod: submission.method,
+          paymentReference: submission.transactionRef,
+          paidAt: decision === 'Verified Paid' ? nowLabel.slice(0, 60) : '',
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+      await refreshAdminData();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `paymentSubmissions/${paymentId}`);
+    }
+  };
+
+  const deletePaymentSubmission = async (paymentId: string) => {
+    try {
+      await deleteDoc(doc(db, 'paymentSubmissions', paymentId));
+      await refreshAdminData();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `paymentSubmissions/${paymentId}`);
     }
   };
 
@@ -1146,6 +1346,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const saveWebsiteSettings = async (next: WebsiteSettings) => {
+    const def = DEFAULT_WEBSITE_SETTINGS;
     const merged = mergeWebsiteSettings(next);
     const sanitizePageObj = <T extends Record<string, string>>(obj: T): T => {
       const out = {} as Record<string, string>;
@@ -1155,25 +1356,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return out as T;
     };
 
+    const clampStr = (val: string | undefined, min: number, max: number, fallback: string) => {
+      const trimmed = (val || '').trim().slice(0, max);
+      return trimmed.length >= min ? trimmed : fallback.slice(0, max);
+    };
+
+    const rawRating = Number(merged.googleRating);
+    const safeRating = Number.isFinite(rawRating)
+      ? Math.min(5, Math.max(0, rawRating))
+      : def.googleRating;
+    const rawCount = Number(merged.googleReviewCount);
+    const safeCount = Number.isFinite(rawCount)
+      ? Math.max(0, Math.round(rawCount))
+      : def.googleReviewCount;
+
     const payload = {
-      businessName: merged.businessName.trim().slice(0, 120),
+      businessName: clampStr(merged.businessName, 1, 120, def.businessName),
       tagline: (merged.tagline || '').trim().slice(0, 200),
-      phone: merged.phone.trim().slice(0, 30),
-      whatsapp: merged.whatsapp.trim().slice(0, 30),
+      phone: clampStr(merged.phone, 5, 30, def.phone),
+      whatsapp: clampStr(merged.whatsapp, 5, 30, def.whatsapp),
       email: (merged.email || '').trim().slice(0, 160),
       websiteUrl: (merged.websiteUrl || '').trim().slice(0, 200),
-      address: merged.address.trim().slice(0, 300),
-      businessHours: merged.businessHours.trim().slice(0, 200),
-      googleRating: Number(merged.googleRating) || 4.7,
-      googleReviewCount: Number(merged.googleReviewCount) || 45,
+      address: clampStr(merged.address, 5, 300, def.address),
+      businessHours: clampStr(merged.businessHours, 2, 200, def.businessHours),
+      googleRating: safeRating,
+      googleReviewCount: safeCount,
       googlePlaceId: (merged.googlePlaceId || '').trim().slice(0, 160),
       googleReviewsUrl: (merged.googleReviewsUrl || '').trim().slice(0, 400),
       logoUrl: (merged.logoUrl || '').slice(0, 300000),
-      heroHeadline: merged.heroHeadline.trim().slice(0, 180),
-      heroSubheadline: merged.heroSubheadline.trim().slice(0, 500),
+      heroHeadline: clampStr(merged.heroHeadline, 5, 180, def.heroHeadline),
+      heroSubheadline: clampStr(merged.heroSubheadline, 10, 500, def.heroSubheadline),
       heroImageUrl: (merged.heroImageUrl || '').slice(0, 300000),
       heroSlides: (merged.heroSlides || [])
-        .filter((s) => s.imageUrl && s.imageUrl.trim())
+        .filter((s) => s && typeof s.imageUrl === 'string' && s.imageUrl.trim())
         .slice(0, 10)
         .map((s, idx) => ({
           id: (s.id || `slide-${idx + 1}`).slice(0, 60),
@@ -1184,7 +1399,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       headerCtaText: (merged.headerCtaText || 'Book a Repair').trim().slice(0, 60),
       headerCtaUrl: (merged.headerCtaUrl || '/book').trim().slice(0, 160),
       navLinks: (merged.navLinks || [])
-        .filter((l) => l.label.trim() && l.to.trim())
+        .filter((l) => l && l.label?.trim() && l.to?.trim())
         .slice(0, 10)
         .map((l) => ({
           label: l.label.trim().slice(0, 40),
@@ -1195,14 +1410,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       footerTagline: (merged.footerTagline || '').trim().slice(0, 200),
       footerLegalText: (merged.footerLegalText || '').trim().slice(0, 400),
       footerQuickLinks: (merged.footerQuickLinks || [])
-        .filter((l) => l.label.trim() && l.to.trim())
+        .filter((l) => l && l.label?.trim() && l.to?.trim())
         .slice(0, 12)
         .map((l) => ({
           label: l.label.trim().slice(0, 60),
           to: l.to.trim().slice(0, 160),
         })),
       footerServiceLinks: (merged.footerServiceLinks || [])
-        .filter((l) => l.label.trim() && l.to.trim())
+        .filter((l) => l && l.label?.trim() && l.to?.trim())
         .slice(0, 12)
         .map((l) => ({
           label: l.label.trim().slice(0, 60),
@@ -1210,12 +1425,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         })),
       socialInstagram: (merged.socialInstagram || '').trim().slice(0, 300),
       socialFacebook: (merged.socialFacebook || '').trim().slice(0, 300),
+      socialYoutube: (merged.socialYoutube || '').trim().slice(0, 300),
+      socialLinkedin: (merged.socialLinkedin || '').trim().slice(0, 300),
+      socialTwitter: (merged.socialTwitter || '').trim().slice(0, 300),
+      razorpayEnabled: Boolean(merged.razorpayEnabled),
+      razorpayKeyId: (merged.razorpayKeyId || '').trim().slice(0, 120),
+      razorpayPaymentLinkUrl: (merged.razorpayPaymentLinkUrl || '').trim().slice(0, 400),
+      manualPaymentEnabled: merged.manualPaymentEnabled !== false,
+      manualUpiId: (merged.manualUpiId || '').trim().slice(0, 160),
+      manualUpiQrUrl: (merged.manualUpiQrUrl || '').slice(0, 300000),
+      manualBankDetails: (merged.manualBankDetails || '').trim().slice(0, 600),
+      manualPaymentNote: (merged.manualPaymentNote || '').trim().slice(0, 500),
       seoTitle: (merged.seoTitle || '').trim().slice(0, 120),
       seoDescription: (merged.seoDescription || '').trim().slice(0, 300),
       seoKeywords: (merged.seoKeywords || '').trim().slice(0, 600),
       serviceAreasText: (merged.serviceAreasText || '').trim().slice(0, 400),
       homeFaqs: (merged.homeFaqs || [])
-        .filter((f) => f.q.trim() && f.a.trim())
+        .filter((f) => f && f.q?.trim() && f.a?.trim())
         .slice(0, 15)
         .map((f) => ({
           q: f.q.trim().slice(0, 220),
@@ -1243,14 +1469,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const saveAdminUser = async (adminUser: Omit<AdminUser, 'id' | 'createdAt'>) => {
     const uid = adminUser.uid.trim().slice(0, 128);
+    const existingAdmin = adminUsers.find((a) => a.uid === uid);
     try {
-      await setDoc(doc(db, 'admins', uid), {
-        uid,
-        email: adminUser.email.trim().slice(0, 200),
-        displayName: adminUser.displayName.trim().slice(0, 120),
-        role: adminUser.role,
-        createdAt: serverTimestamp(),
-      });
+      if (existingAdmin?.createdAt) {
+        await updateDoc(doc(db, 'admins', uid), {
+          email: adminUser.email.trim().slice(0, 200),
+          displayName: adminUser.displayName.trim().slice(0, 120),
+          role: adminUser.role,
+        });
+      } else {
+        await setDoc(doc(db, 'admins', uid), {
+          uid,
+          email: adminUser.email.trim().slice(0, 200),
+          displayName: adminUser.displayName.trim().slice(0, 120),
+          role: adminUser.role,
+          createdAt: serverTimestamp(),
+        });
+      }
       await refreshAdminData();
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `admins/${uid}`);
@@ -1286,6 +1521,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         customerLogout,
         customerEnquiries,
         customerMessages,
+        customerPayments,
         customerLoading,
         refreshCustomerData,
         adminServices,
@@ -1293,6 +1529,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         adminBlogPosts,
         adminReviews,
         enquiries,
+        paymentSubmissions,
         contactMessages,
         adminUsers,
         adminLoading,
@@ -1302,10 +1539,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         seedCatalogToFirestore,
         submitRepairEnquiry,
         trackRepairEnquiry,
+        submitRepairPayment,
         submitContactMessage,
         submitPublicReview,
         updateEnquiry,
         deleteEnquiry,
+        verifyPaymentSubmission,
+        deletePaymentSubmission,
         saveService,
         deleteService,
         saveMacBookModel,
