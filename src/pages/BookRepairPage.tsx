@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   CheckCircle2,
+  LogIn,
   MessageCircle,
   Phone,
   Search,
   ShieldAlert,
   Upload,
+  UserCheck,
   X,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -16,13 +18,14 @@ import {
   buildWhatsAppUrl,
   compressImageToDataUrl,
 } from '../utils/whatsapp';
+import { HeroReveal } from '../components/MotionPrimitives';
 
 export function BookRepairPage({
   onNotify,
 }: {
   onNotify: (type: 'success' | 'error', message: string) => void;
 }) {
-  const { models, settings, submitRepairEnquiry } = useApp();
+  const { models, settings, submitRepairEnquiry, user, customerLogin } = useApp();
   const [searchParams] = useSearchParams();
 
   const initialService =
@@ -50,9 +53,9 @@ export function BookRepairPage({
   const pageCopy = settings.pageContent.book;
 
   useSeoMeta({
-    title: 'Book Your MacBook Repair in Gurugram | Refix Pro Sector 14',
+    title: 'Book Your MacBook Repair in Gurugram | Refix Pro',
     description:
-      'Quick 30-second repair booking at Refix Pro, SCF-92, Sector 14 Main Market, Gurugram. Share your name, mobile, and MacBook, iPad, or iPhone model.',
+      'Quick 30-second repair booking at Refix Pro, SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007. Share your name, mobile, and MacBook, iPad, or iPhone model.',
     keywords: settings.seoKeywords,
     canonicalPath: '/book',
   });
@@ -132,8 +135,8 @@ export function BookRepairPage({
     )}&mobile=${encodeURIComponent(confirmedEnquiry.mobile)}`;
 
     return (
-      <div className="bg-[#F5F5F7] min-h-screen py-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-2xl mx-auto bg-white rounded-2xl border border-[#E5E5EA] p-8 sm:p-10 text-center space-y-6 shadow-[0_14px_40px_-20px_rgba(0,0,0,0.1)]">
+      <div className="bg-[#F5F5F7] min-h-screen py-14 w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20">
+        <HeroReveal className="max-w-3xl mx-auto bg-white rounded-2xl border border-[#E5E5EA] p-8 sm:p-10 text-center space-y-6 shadow-[0_14px_40px_-20px_rgba(0,0,0,0.1)]">
           <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto">
             <CheckCircle2 className="w-8 h-8 text-emerald-600" />
           </div>
@@ -141,7 +144,7 @@ export function BookRepairPage({
             <p className="text-xs font-semibold text-emerald-700">Saved in Refix Pro Repair Queue</p>
             <h1 className="text-3xl font-bold text-[#1D1D1F]">Repair Request Confirmed</h1>
             <p className="text-sm text-[#424245]">
-              Save your Enquiry ID below to track live repair progress anytime on our website. Our Sector 14, Gurugram desk will contact you shortly.
+              Save your Enquiry ID below to track live repair progress anytime on our website. Our SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007 desk will contact you shortly.
             </p>
           </div>
 
@@ -163,6 +166,13 @@ export function BookRepairPage({
           </div>
 
           <div className="flex flex-wrap justify-center gap-3 pt-2">
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#1D1D1F] hover:bg-black text-white text-sm font-semibold transition-colors whitespace-nowrap"
+            >
+              <UserCheck className="w-4 h-4 text-[#60A5FA]" />
+              Open My Dashboard
+            </Link>
             <Link
               to={trackHref}
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] text-white text-sm font-semibold transition-colors whitespace-nowrap"
@@ -201,15 +211,15 @@ export function BookRepairPage({
               Submit Another Repair Request
             </button>
           </div>
-        </div>
+        </HeroReveal>
       </div>
     );
   }
 
   return (
     <div className="bg-[#F5F5F7] min-h-screen py-12 lg:py-16">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8 space-y-3">
+      <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 space-y-8">
+        <HeroReveal className="space-y-3">
           <nav aria-label="Breadcrumb" className="text-xs text-[#6E6E73] flex items-center gap-2">
             <Link to="/" className="hover:text-[#1D1D1F]">Home</Link>
             <span>/</span>
@@ -218,15 +228,54 @@ export function BookRepairPage({
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#1D1D1F]">
             {pageCopy.headline}
           </h1>
-          <p className="text-sm sm:text-base text-[#424245]">
+          <p className="text-sm sm:text-base text-[#424245] max-w-3xl">
             {pageCopy.subheadline}
           </p>
+        </HeroReveal>
+
+        {/* Optional Customer Account Sync Bar */}
+        <div className="p-4 rounded-2xl bg-white border border-[#E5E5EA] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {user ? (
+            <div className="flex items-center gap-2.5 text-xs sm:text-sm text-[#1D1D1F]">
+              <UserCheck className="w-4 h-4 text-[#0066CC] shrink-0" />
+              <span>
+                Signed in as <strong className="font-mono">{user.email}</strong> — this repair booking & all live admin updates will appear inside your{' '}
+                <Link to="/dashboard" className="font-semibold text-[#0066CC] hover:underline">
+                  Customer Dashboard
+                </Link>.
+              </span>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2.5 text-xs sm:text-sm text-[#424245]">
+                <LogIn className="w-4 h-4 text-[#0066CC] shrink-0" />
+                <span>
+                  Optional: Sign in with Google before submitting to view technician estimates & live updates in your personal Customer Dashboard.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await customerLogin();
+                    onNotify('success', 'Signed in! Your booking will automatically link to your dashboard.');
+                  } catch {
+                    onNotify('error', 'Sign-in cancelled.');
+                  }
+                }}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl border border-[#D2D2D7] bg-[#F5F5F7] hover:bg-[#E5E5EA]/70 text-xs font-semibold text-[#1D1D1F] whitespace-nowrap shrink-0"
+              >
+                Sign In with Google
+              </button>
+            </>
+          )}
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-2xl border border-[#E5E5EA] shadow-[0_12px_36px_-18px_rgba(0,0,0,0.08)] p-6 sm:p-8 space-y-6"
-        >
+        <HeroReveal delay={0.06}>
+          <form
+            onSubmit={handleSubmit}
+            className="bg-white rounded-2xl border border-[#E5E5EA] shadow-[0_12px_36px_-18px_rgba(0,0,0,0.08)] p-6 sm:p-8 space-y-6"
+          >
           {/* Spam honeypot */}
           <div className="hidden" aria-hidden="true">
             <label htmlFor="companyWebsite">Leave empty</label>
@@ -379,7 +428,25 @@ export function BookRepairPage({
               </a>
             </div>
           </div>
-        </form>
+          </form>
+        </HeroReveal>
+
+        <div className="mt-6 p-4 rounded-xl bg-white border border-[#E5E5EA] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-[#6E6E73]">
+          <span>By submitting, you confirm diagnostic review terms apply only after your approval.</span>
+          <div className="flex flex-wrap items-center gap-3 font-semibold shrink-0">
+            <Link to="/warranty-and-refund-policy" className="text-[#0066CC] hover:underline whitespace-nowrap">
+              Warranty & Refund
+            </Link>
+            <span>·</span>
+            <Link to="/data-protection-policy" className="text-[#0066CC] hover:underline whitespace-nowrap">
+              Data Safety
+            </Link>
+            <span>·</span>
+            <Link to="/privacy-policy" className="text-[#0066CC] hover:underline whitespace-nowrap">
+              Privacy Policy
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );

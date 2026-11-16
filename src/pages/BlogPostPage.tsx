@@ -111,7 +111,7 @@ export function BlogPostPage() {
 
   if (!post) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-24 text-center space-y-4">
+      <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 py-24 text-center space-y-4">
         <h1 className="text-3xl font-bold text-[#1D1D1F]">Article Not Found</h1>
         <p className="text-sm text-[#424245]">The requested guide may have been moved or unpublished.</p>
         <Link to="/blog" className="inline-flex items-center gap-2 text-sm font-semibold text-[#0066CC]">
@@ -125,8 +125,8 @@ export function BlogPostPage() {
   return (
     <article className="bg-white min-h-screen">
       {/* Header */}
-      <header className="bg-[#F5F5F7] border-b border-[#E5E5EA] py-12 lg:py-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
+      <header className="bg-gradient-to-b from-[#F5F5F7] to-white border-b border-[#E5E5EA] py-12 lg:py-16">
+        <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 space-y-5">
           <nav aria-label="Breadcrumb" className="text-xs text-[#6E6E73] flex flex-wrap items-center gap-2">
             <Link to="/" className="hover:text-[#1D1D1F]">Home</Link>
             <span>/</span>
@@ -150,14 +150,14 @@ export function BlogPostPage() {
       </header>
 
       {/* Featured Image */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 -mt-4 pt-8">
-        <div className="aspect-[16/9] rounded-2xl overflow-hidden border border-[#E5E5EA] bg-[#F5F5F7]">
+      <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 -mt-4 pt-8">
+        <div className="aspect-[16/9] max-h-[540px] rounded-2xl overflow-hidden border border-[#E5E5EA] bg-[#F5F5F7]">
           <SafeImage src={post.featuredImage} alt={post.title} className="w-full h-full object-cover" />
         </div>
       </div>
 
       {/* Article Body + Table of Contents */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-10">
+      <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 py-12 space-y-10">
         {parsed.headings.length > 0 && (
           <nav aria-label="Table of Contents" className="p-5 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA]">
             <p className="text-xs font-bold text-[#1D1D1F] mb-3">Table of Contents</p>
@@ -208,9 +208,9 @@ export function BlogPostPage() {
 
         {/* Repair Tips Box */}
         <div className="p-6 rounded-2xl bg-[#F5F5F7] border border-[#E5E5EA] space-y-2">
-          <h3 className="text-base font-bold text-[#1D1D1F]">Specialist Tip from Refix Pro, Sector 14</h3>
+          <h3 className="text-base font-bold text-[#1D1D1F]">Specialist Tip from Refix Pro</h3>
           <p className="text-sm text-[#424245] leading-relaxed">
-            Avoid opening sealed MacBook batteries or probing live logic boards without ESD protection. Bring your MacBook to SCF-92, Sector 14 Main Market, Gurugram for a structured bench check first.
+            Avoid opening sealed MacBook batteries or probing live logic boards without ESD protection. Bring your MacBook to SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007 for a structured bench check first.
           </p>
         </div>
 
@@ -253,7 +253,7 @@ export function BlogPostPage() {
           <div className="space-y-1.5">
             <h2 className="text-xl font-bold">Need Hands-On MacBook Diagnostics?</h2>
             <p className="text-sm text-[#A1A1A6]">
-              Book a repair slot or message our Sector 14, Gurugram desk directly.
+              Book a repair slot or visit SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007.
             </p>
           </div>
           <div className="flex flex-wrap gap-3 shrink-0">
@@ -282,7 +282,7 @@ export function BlogPostPage() {
       {/* Related Articles */}
       {relatedPosts.length > 0 && (
         <section className="bg-[#F5F5F7] border-t border-[#E5E5EA] py-14">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20">
             <h2 className="text-2xl font-bold text-[#1D1D1F] mb-8">Related MacBook Repair Guides</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {relatedPosts.map((rel) => (

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Shield, Trash2, Upload } from 'lucide-react';
+import { ArrowDown, ArrowUp, Image as ImageIcon, Plus, Shield, Trash2, Upload } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { compressImageToDataUrl } from '../../utils/whatsapp';
 import { WebsiteSettings } from '../../types';
@@ -21,6 +21,7 @@ export function AdminSettingsAndUsersTab({
     saveAdminUser,
     removeAdminUser,
     user,
+    googleLiveProfile,
   } = useApp();
 
   const [form, setForm] = useState<WebsiteSettings>({ ...settings });
@@ -339,6 +340,35 @@ export function AdminSettingsAndUsersTab({
               className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] text-xs"
             />
           </div>
+          <div className="sm:col-span-2">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <label className="block text-xs font-semibold">
+                Google Business Place ID (Optional · Auto-Detected via Places API)
+              </label>
+              {googleLiveProfile.placeId && form.googlePlaceId !== googleLiveProfile.placeId && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm({ ...form, googlePlaceId: googleLiveProfile.placeId || '' })
+                  }
+                  className="text-[11px] font-semibold text-[#0066CC] hover:underline"
+                >
+                  Use Detected ID ({googleLiveProfile.placeId.slice(0, 14)}...)
+                </button>
+              )}
+            </div>
+            <input
+              type="text"
+              value={form.googlePlaceId || ''}
+              onChange={(e) => setForm({ ...form, googlePlaceId: e.target.value })}
+              placeholder={
+                googleLiveProfile.placeId
+                  ? `Auto-detected: ${googleLiveProfile.placeId}`
+                  : 'Leave blank to auto-connect Refix Pro (SCF-92,SECTOR-14 MAIN MARKET, Gurugram)'
+              }
+              className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] text-xs font-mono"
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#F5F5F7]">
@@ -353,7 +383,7 @@ export function AdminSettingsAndUsersTab({
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold mb-1">Homepage Hero Image</label>
+            <label className="block text-xs font-semibold mb-1">Fallback Hero Image URL</label>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -388,6 +418,166 @@ export function AdminSettingsAndUsersTab({
             onChange={(e) => setForm({ ...form, heroSubheadline: e.target.value })}
             className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] text-sm"
           />
+        </div>
+
+        {/* Hero Section Image Slider Manager */}
+        <div className="p-4 sm:p-5 rounded-xl bg-[#F5F5F7]/70 border border-[#E5E5EA] space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-[#1D1D1F] flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-[#0066CC]" />
+                Home Hero Image Slider ({(form.heroSlides || []).length} Slides)
+              </h3>
+              <p className="text-xs text-[#6E6E73]">
+                Upload, edit, reorder, or remove images shown in the Home Page hero slider. Click &ldquo;Save Settings&rdquo; above to publish changes.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const nextSlides = [...(form.heroSlides || [])];
+                nextSlides.push({
+                  id: `slide-${Date.now().toString(36)}`,
+                  title: 'New Refix Pro Studio Slide',
+                  subtitle: 'SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007',
+                  imageUrl: form.heroImageUrl || '',
+                });
+                setForm({ ...form, heroSlides: nextSlides });
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#1D1D1F] hover:bg-black text-white text-xs font-semibold whitespace-nowrap"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Hero Slide
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {(form.heroSlides || []).map((slide, idx) => (
+              <div
+                key={slide.id || idx}
+                className="p-4 rounded-xl bg-white border border-[#E5E5EA] grid grid-cols-1 md:grid-cols-12 gap-4 items-center"
+              >
+                <div className="md:col-span-3 aspect-[16/10] rounded-lg overflow-hidden bg-[#F5F5F7] border border-[#E5E5EA]">
+                  {slide.imageUrl ? (
+                    <img
+                      src={slide.imageUrl}
+                      alt={slide.title || `Hero slide ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[11px] text-[#6E6E73]">
+                      No Image
+                    </div>
+                  )}
+                </div>
+
+                <div className="md:col-span-7 space-y-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#6E6E73] mb-1">
+                        Slide {idx + 1} Title
+                      </label>
+                      <input
+                        type="text"
+                        value={slide.title}
+                        onChange={(e) => {
+                          const next = [...(form.heroSlides || [])];
+                          next[idx] = { ...slide, title: e.target.value };
+                          setForm({ ...form, heroSlides: next });
+                        }}
+                        className="w-full px-3 py-1.5 rounded-lg border border-[#D2D2D7] text-xs font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#6E6E73] mb-1">
+                        Slide Subtitle
+                      </label>
+                      <input
+                        type="text"
+                        value={slide.subtitle}
+                        onChange={(e) => {
+                          const next = [...(form.heroSlides || [])];
+                          next[idx] = { ...slide, subtitle: e.target.value };
+                          setForm({ ...form, heroSlides: next });
+                        }}
+                        className="w-full px-3 py-1.5 rounded-lg border border-[#D2D2D7] text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={slide.imageUrl}
+                      onChange={(e) => {
+                        const next = [...(form.heroSlides || [])];
+                        next[idx] = { ...slide, imageUrl: e.target.value };
+                        setForm({ ...form, heroSlides: next });
+                      }}
+                      placeholder="Paste image URL or upload file..."
+                      className="flex-1 px-3 py-1.5 rounded-lg border border-[#D2D2D7] text-xs font-mono"
+                    />
+                    <label className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#D2D2D7] bg-[#F5F5F7] hover:bg-[#E5E5EA]/70 text-xs font-semibold cursor-pointer whitespace-nowrap">
+                      <Upload className="w-3.5 h-3.5" />
+                      Upload
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const url = await compressImageToDataUrl(file, 1200, 0.75);
+                          const next = [...(form.heroSlides || [])];
+                          next[idx] = { ...slide, imageUrl: url };
+                          setForm({ ...form, heroSlides: next });
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="md:col-span-2 flex md:flex-col items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    disabled={idx === 0}
+                    onClick={() => {
+                      const next = [...(form.heroSlides || [])];
+                      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                      setForm({ ...form, heroSlides: next });
+                    }}
+                    aria-label="Move slide up"
+                    className="p-1.5 rounded-lg border border-[#D2D2D7] hover:bg-[#F5F5F7] disabled:opacity-40"
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={idx === (form.heroSlides || []).length - 1}
+                    onClick={() => {
+                      const next = [...(form.heroSlides || [])];
+                      [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
+                      setForm({ ...form, heroSlides: next });
+                    }}
+                    aria-label="Move slide down"
+                    className="p-1.5 rounded-lg border border-[#D2D2D7] hover:bg-[#F5F5F7] disabled:opacity-40"
+                  >
+                    <ArrowDown className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = (form.heroSlides || []).filter((_, i) => i !== idx);
+                      setForm({ ...form, heroSlides: next });
+                    }}
+                    aria-label="Remove slide"
+                    className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -25,16 +25,43 @@ export const DEFAULT_WEBSITE_SETTINGS: Omit<WebsiteSettings, 'updatedAt'> = {
   whatsapp: '+91 96139 32932',
   email: 'refixpro.in@gmail.com',
   websiteUrl: 'https://refixpro.in',
-  address: 'SCF-92, Sector 14 Main Market, Gurugram, Haryana 122007, India',
+  address: 'SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007',
   businessHours: 'Open Daily · 10:30 AM – 9:00 PM',
   googleRating: 4.7,
   googleReviewCount: 45,
-  googleReviewsUrl: 'https://www.google.com/maps/search/?api=1&query=Refix+Pro+SCF-92+Sector+14+Main+Market+Gurugram',
+  googlePlaceId: '',
+  googleReviewsUrl: 'https://www.google.com/maps/search/?api=1&query=SCF-92,SECTOR-14+MAIN+MARKET,+Gurugram,+Haryana+122007',
   logoUrl: '',
   heroHeadline: 'Expert MacBook Repair in Gurugram',
   heroSubheadline:
     'From liquid damage and motherboard faults to screen replacement and battery issues, get professional MacBook repair solutions at Refix Pro — plus precision support for Apple iPad and iPhone models.',
   heroImageUrl: IMG_HERO_PRO,
+  heroSlides: [
+    {
+      id: 'slide-1',
+      title: 'ESD-Safe MacBook Diagnostic Studio',
+      subtitle: 'Precision logic board & Retina display service at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007.',
+      imageUrl: IMG_HERO_PRO,
+    },
+    {
+      id: 'slide-2',
+      title: 'Leica Microscope & Chip-Level Rework',
+      subtitle: 'Power rail short isolation, USB-C controller ICs, and liquid spill recovery.',
+      imageUrl: IMG_MICROSCOPE,
+    },
+    {
+      id: 'slide-3',
+      title: 'Retina & Liquid Retina XDR Calibration',
+      subtitle: 'Panel swaps, eDP flex inspection, and backlight boost circuit repair.',
+      imageUrl: IMG_DISPLAY,
+    },
+    {
+      id: 'slide-4',
+      title: 'Dedicated Apple Hardware Workbench',
+      subtitle: 'Structured intake, upfront inspection quotes, and genuine care for your MacBook.',
+      imageUrl: IMG_WORKSHOP,
+    },
+  ],
   headerCtaText: 'Book a Repair',
   headerCtaUrl: '/book',
   navLinks: [
@@ -47,16 +74,19 @@ export const DEFAULT_WEBSITE_SETTINGS: Omit<WebsiteSettings, 'updatedAt'> = {
     { label: 'Contact', to: '/contact', visible: true },
   ],
   footerDescription:
-    'Dedicated Apple MacBook diagnostic and chip-level repair studio in Sector 14 Main Market, Gurugram. Transparent inspection, micro-soldering expertise, and genuine care for your MacBook, iPad, and iPhone.',
+    'Dedicated Apple MacBook diagnostic and chip-level repair studio at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007. Transparent inspection, micro-soldering expertise, and genuine care for your MacBook, iPad, and iPhone.',
   footerTagline: 'Your MacBook Deserves Expert Care. Trust Refix Pro.',
   footerLegalText:
-    'Refix Pro is an independent Apple device repair studio in Sector 14, Gurugram and is not affiliated with or an Apple Authorized Service Provider.',
+    'Refix Pro is an independent Apple device repair studio at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007 and is not affiliated with or an Apple Authorized Service Provider.',
   footerQuickLinks: [
     { label: 'Home', to: '/' },
     { label: 'About Us', to: '/about' },
     { label: 'MacBook Services', to: '/services' },
     { label: 'Supported Apple Models', to: '/models' },
+    { label: 'Customer Reviews', to: '/reviews' },
+    { label: 'FAQs & Help Center', to: '/faq' },
     { label: 'Track My Repair', to: '/track' },
+    { label: 'Customer Dashboard', to: '/dashboard' },
     { label: 'Blog', to: '/blog' },
     { label: 'Contact Us', to: '/contact' },
     { label: 'Book a Repair', to: '/book' },
@@ -71,38 +101,37 @@ export const DEFAULT_WEBSITE_SETTINGS: Omit<WebsiteSettings, 'updatedAt'> = {
   ],
   socialInstagram: 'https://refixpro.in',
   socialFacebook: 'https://refixpro.in',
-  seoTitle: 'Refix Pro – Best MacBook Repair in Gurugram | Sector 14 Gurgaon',
+  seoTitle: 'Refix Pro – Best MacBook Repair in Gurugram | SCF-92,SECTOR-14 MAIN MARKET',
   seoDescription:
-    'Top-rated MacBook repair in Sector 14, Gurugram (Gurgaon). Expert MacBook logic board chip-level repair, Retina screen replacement, battery service, liquid damage recovery, and iPad & iPhone repair near DLF Cyber City, MG Road & Golf Course Road.',
+    'Top-rated MacBook repair at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007. Expert MacBook logic board chip-level repair, Retina screen replacement, battery service, liquid damage recovery, and iPad & iPhone repair.',
   seoKeywords:
-    'MacBook repair in Gurugram, MacBook repair Gurgaon, MacBook repair Sector 14 Gurugram, Apple MacBook service center near me Gurgaon, MacBook logic board repair Gurugram, MacBook Pro screen replacement Gurgaon, MacBook Air battery replacement Gurugram, MacBook water damage repair Gurgaon, iPad repair Gurugram, iPhone repair Sector 14 Gurugram, MacBook repair DLF Cyber City MG Road Golf Course Road Sohna Road',
-  serviceAreasText:
-    'Serving Sector 14, DLF Cyber City, DLF Phase 1–5, MG Road, Golf Course Road, Sohna Road, Sushant Lok, Udyog Vihar, South City, & Palam Vihar across Gurugram.',
+    'MacBook repair in Gurugram, MacBook repair Gurgaon, MacBook repair SCF-92 Sector 14 Main Market Gurugram, Apple MacBook service center Gurugram, MacBook logic board repair Gurugram, MacBook Pro screen replacement Gurugram, MacBook Air battery replacement Gurugram, MacBook water damage repair Gurugram, iPad repair Gurugram, iPhone repair Gurugram',
+  serviceAreasText: '',
   homeFaqs: [
     {
       q: 'Do you repair Apple MacBooks, iPads, and iPhones at Refix Pro Gurugram?',
-      a: 'Yes. Refix Pro is primarily dedicated to Apple MacBook diagnostics, logic board chip-level repair, Retina display service, battery replacement, and liquid damage recovery, and also supports original Apple iPad and iPhone hardware repairs at our Sector 14, Gurugram studio.',
+      a: 'Yes. Refix Pro is primarily dedicated to Apple MacBook diagnostics, logic board chip-level repair, Retina display service, battery replacement, and liquid damage recovery, and also supports original Apple iPad and iPhone hardware repairs at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007.',
     },
     {
       q: 'Can you save my data if my MacBook has logic board or liquid damage?',
       a: 'In most cases, yes. On modern MacBooks with soldered storage, repairing the failed power rails on the logic board restores access without erasing your SSD. We assess data safety before starting work.',
     },
     {
-      q: 'How long does MacBook diagnosis and repair take in Sector 14, Gurugram?',
-      a: 'Initial inspection and fault confirmation typically happen the same day at our Sector 14 desk. Component-level board work or display replacements are quoted with a clear timeline once parts compatibility is confirmed.',
+      q: 'How long does MacBook diagnosis and repair take at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007?',
+      a: 'Initial inspection and fault confirmation typically happen the same day at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007. Component-level board work or display replacements are quoted with a clear timeline once parts compatibility is confirmed.',
     },
     {
       q: 'How can I check the status of my MacBook repair?',
-      a: 'Use the Track My Repair tool right on this page or visit the Track Repair page with your RP- Enquiry ID and registered mobile number for live technician status and estimate updates.',
+      a: 'Sign into your Customer Dashboard or use the Track My Repair tool right on this page with your RP- Enquiry ID and registered mobile number for live technician status and estimate updates.',
     },
     {
       q: 'Are you an Apple Authorized Service Provider?',
-      a: 'No. Refix Pro is an independent MacBook and Apple repair specialist in Sector 14, Gurugram, offering chip-level motherboard repairs and component services outside manufacturer depot swaps.',
+      a: 'No. Refix Pro is an independent MacBook and Apple repair specialist at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007, offering chip-level motherboard repairs and component services outside manufacturer depot swaps.',
     },
   ],
   pageContent: {
     home: {
-      heroEyebrow: 'Apple MacBook Repair Specialist · Sector 14, Gurugram',
+      heroEyebrow: 'Apple MacBook Repair Specialist · SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007',
       servicesEyebrow: 'Focused Apple Hardware Expertise',
       servicesHeading: 'Our MacBook Repair Services',
       toolsEyebrow: 'Interactive Customer Tools',
@@ -112,37 +141,37 @@ export const DEFAULT_WEBSITE_SETTINGS: Omit<WebsiteSettings, 'updatedAt'> = {
       whyEyebrow: 'Precision Diagnostic Standard',
       whyHeading: 'Why Choose Refix Pro in Gurugram?',
       whyDescription:
-        'Instead of guessing or quoting blanket motherboard swaps, our Sector 14 bench traces exact voltage rails, controller ICs, and display lines before recommending any repair.',
+        'Instead of guessing or quoting blanket motherboard swaps, our bench at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007 traces exact voltage rails, controller ICs, and display lines before recommending any repair.',
       modelsEyebrow: 'MacBook, iPad & iPhone Support',
       modelsHeading: 'Original Apple Models We Support',
       modelsSubheading:
         'Select your exact MacBook, iPad, or iPhone generation to view model identifiers, common faults, and technician compatibility confirmation.',
       problemsHeading: 'Common MacBook Problems',
       processHeading: 'Our Repair Process',
-      reviewsHeading: 'Verified Google Business Reviews',
+      reviewsHeading: 'Verified Google & Customer Reviews',
       faqHeading: 'Frequently Asked Questions',
       blogHeading: 'Latest MacBook Repair Guides',
-      locationHeading: 'Sector 14, Gurugram Service Studio',
+      locationHeading: 'Visit Refix Pro Gurugram',
       finalCtaHeadline: 'Your MacBook Deserves Expert Care. Trust Refix Pro.',
       finalCtaSubheadline:
-        'Book a diagnostic slot online or message our Sector 14 desk directly on WhatsApp for quick model compatibility and inspection guidance.',
+        'Book a diagnostic slot online or visit SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007 for quick model compatibility and inspection guidance.',
     },
     services: {
       headline: 'Apple MacBook Repair Services in Gurugram',
       subheadline:
-        'Focused on Apple MacBook hardware, logic boards, Retina displays, batteries, liquid recovery, and macOS stability at Sector 14, Gurugram. Component availability and final pricing are confirmed by our technician after inspecting your model.',
+        'Focused on Apple MacBook hardware, logic boards, Retina displays, batteries, liquid recovery, and macOS stability at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007. Component availability and final pricing are confirmed by our technician after inspecting your model.',
       noticeText:
-        'Every repair begins with a physical inspection at Refix Pro, SCF-92, Sector 14, Gurugram. Specific parts availability, feasibility, and final estimates are confirmed by our technician prior to repair.',
+        'Every repair begins with a physical inspection at Refix Pro, SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007. Specific parts availability, feasibility, and final estimates are confirmed by our technician prior to repair.',
     },
     models: {
       headline: 'MacBook, iPad & iPhone Models & Compatibility',
       subheadline:
-        'Authentic Apple A-numbers across Intel and Apple Silicon MacBook Air & Pro, iPad Pro / Air / Mini, and iPhone 11–16 series. Exact part compatibility is confirmed by our Sector 14 Gurugram technician.',
+        'Authentic Apple A-numbers across Intel and Apple Silicon MacBook Air & Pro, iPad Pro / Air / Mini, and iPhone 11–16 series. Exact part compatibility is confirmed by our technician at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007.',
       selectorHeading: 'Check Compatibility & Request Repair',
       selectorSubheading:
         'Select your Apple device category, exact model/A-number, and primary symptom to submit a repair enquiry directly.',
       selectorNotice:
-        'Support and spare component availability for any MacBook, iPad, or iPhone model are confirmed by our Sector 14 technician upon inspection.',
+        'Support and spare component availability for any MacBook, iPad, or iPhone model are confirmed upon bench inspection at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007.',
     },
     book: {
       headline: 'Book Your Repair in Gurugram',
@@ -154,34 +183,34 @@ export const DEFAULT_WEBSITE_SETTINGS: Omit<WebsiteSettings, 'updatedAt'> = {
     track: {
       headline: 'Track Your Repair Status',
       subheadline:
-        'Stay updated from initial bench diagnostics through parts confirmation, repair completion, and QA pickup readiness at our Sector 14, Gurugram studio.',
+        'Stay updated from initial bench diagnostics through parts confirmation, repair completion, and QA pickup readiness at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007.',
     },
     about: {
       headline: 'About Refix Pro – Apple Repair Specialists in Gurugram',
       subheadline:
-        'Refix Pro is a dedicated MacBook & Apple hardware repair studio in Sector 14 Main Market, Gurugram. We focus on logic board troubleshooting, chip-level micro-soldering, display and battery service, and transparent customer support.',
+        'Refix Pro is a dedicated MacBook & Apple hardware repair studio at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007. We focus on logic board troubleshooting, chip-level micro-soldering, display and battery service, and transparent customer support.',
       workshopImageUrl: IMG_WORKSHOP,
       approachHeading: 'Our Approach to Diagnostics & Chip-Level Repair',
       approachDescription:
         'Modern Apple devices pack intricate multi-layer logic boards, USB-C Power Delivery controllers, and tightly integrated display assemblies. Rather than immediately suggesting costly whole-board replacements, our bench prioritizes root-cause fault isolation.',
       galleryHeading: 'Repair Workstation Gallery',
       gallerySubheading:
-        'A closer look at our ESD-safe repair benches, Leica stereo microscopy station, display testing setup, and liquid recovery lab in Sector 14.',
+        'A closer look at our ESD-safe repair benches, Leica stereo microscopy station, display testing setup, and liquid recovery lab at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007.',
     },
     blog: {
-      headline: 'MacBook Repair Guides & Gurugram Insights',
+      headline: 'MacBook Repair Guides & Insights',
       subheadline:
-        'Technical guides from our Sector 14, Gurugram repair desk on liquid spill recovery, logic board diagnostics, battery care, and display troubleshooting.',
+        'Technical guides from SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007 on liquid spill recovery, logic board diagnostics, battery care, and display troubleshooting.',
       sidebarCtaTitle: 'Need Repair Help Today?',
       sidebarCtaText:
-        'Visit SCF-92, Sector 14 Main Market, Gurugram or schedule a diagnostic inspection online.',
+        'Visit SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007 or schedule a diagnostic inspection online.',
     },
     contact: {
       headline: 'Contact Refix Pro, Gurugram',
       subheadline:
-        'Walk in with your MacBook, iPad, or iPhone at Sector 14 Main Market, Gurugram or message our technical desk directly for quick guidance.',
+        'Walk in with your MacBook, iPad, or iPhone at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007 or message our technical desk directly for quick guidance.',
       formHeading: 'Send a Business Enquiry',
-      mapHeading: 'Find Us in Sector 14 Main Market, Gurugram',
+      mapHeading: 'Find Us at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007',
     },
   },
 };
@@ -235,7 +264,7 @@ Capacitors on primary rails like PPBUS_G3H can fail over time or after voltage s
 - If the MacBook recently encountered any moisture, stop plugging it in immediately.
 
 ### How Refix Pro Diagnoses Dead MacBooks in Gurugram
-At Refix Pro in Sector 14, Gurugram, we begin with USB-C amp-meter diagnostics, disconnect the battery safely, and inspect primary power rails under Leica microscopy before providing a clear repair estimate.`,
+At Refix Pro, SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007, we begin with USB-C amp-meter diagnostics, disconnect the battery safely, and inspect primary power rails under Leica microscopy before providing a clear repair estimate.`,
   },
   {
     id: 'blog-water-damage',
@@ -272,7 +301,7 @@ Open the lid wide and place the MacBook in an inverted "V" tent position over a 
 - **Do not turn it back on to "test"**: Applying power to wet traces accelerates electrolysis and burns copper pads.
 
 ### Why Professional Ultrasonic Decontamination Matters
-At Refix Pro Sector 14, Gurugram, our liquid-damage workflow disconnects the battery first, strips down the board, treats oxidized areas under a microscope, runs specialized ultrasonic cleaning, and verifies every rail before reassembly.`,
+At Refix Pro, SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007, our liquid-damage workflow disconnects the battery first, strips down the board, treats oxidized areas under a microscope, runs specialized ultrasonic cleaning, and verifies every rail before reassembly.`,
   },
   {
     id: 'blog-battery-draining',
@@ -342,7 +371,7 @@ Before recommending a display swap, our technicians test:
 2. **Backlight Circuit**: Checks if a faint image is visible under a flashlight (indicating a board-level backlight fault rather than a dead screen).
 3. **Display Connector & Flex Cable**: Inspects for corrosion or hinge cable fatigue.
 
-Visit Refix Pro at SCF-92, Sector 14 Main Market, Gurugram for an honest screen damage assessment before committing to replacement.`,
+Visit Refix Pro at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007 for an honest screen damage assessment before committing to replacement.`,
   },
   {
     id: 'blog-logic-board-explained',
@@ -403,7 +432,7 @@ Charging issues are among the most common reasons Gurugram professionals visit R
 3. **USB-C Controller (CD3215 / CD3217) Failure**: Voltage spikes from third-party hubs or unstable power strips frequently damage these controller chips.
 4. **Degraded Battery / BMS Lockout**: An end-of-life battery can refuse charge acceptance for safety.
 
-Bring your MacBook and charger together to Refix Pro in Sector 14 so we can test both the adapter output and internal charging circuit.`,
+Bring your MacBook and charger together to Refix Pro at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007 so we can test both the adapter output and internal charging circuit.`,
   },
   {
     id: 'blog-keyboard-not-working',
@@ -529,7 +558,7 @@ Chip-level repair is the surgical discipline of diagnosing and restoring individ
 - **Trace Reconstruction**: Rebuilding copper pathways etched away by liquid corrosion.
 
 ### Why Precision Tooling Matters
-Without proper stereo magnification, controlled pre-heating, and ESD protection, overheating a multi-layer Apple PCB can cause internal layer delamination. At Refix Pro in Sector 14, Gurugram, every board enters a dedicated ESD-safe micro-soldering bench for methodical diagnostics before any repair begins.`,
+Without proper stereo magnification, controlled pre-heating, and ESD protection, overheating a multi-layer Apple PCB can cause internal layer delamination. At Refix Pro, SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007, every board enters a dedicated ESD-safe micro-soldering bench for methodical diagnostics before any repair begins.`,
   },
 ];
 

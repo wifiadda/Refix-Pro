@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  APIProvider,
   AdvancedMarker,
   InfoWindow,
   Map as GoogleMap,
@@ -12,7 +11,7 @@ import { useApp } from '../context/AppContext';
 
 const REFIX_PRO_COORDS = { lat: 28.4716, lng: 77.0436 };
 const DIRECTIONS_URL =
-  'https://www.google.com/maps/dir/?api=1&destination=SCF-92,+Sector+14+Main+Market,+Gurugram,+Haryana+122007,+India';
+  'https://www.google.com/maps/dir/?api=1&destination=SCF-92,SECTOR-14+MAIN+MARKET,+Gurugram,+Haryana+122007';
 
 function RefixMarker({ address }: { address: string }) {
   const [markerRef, marker] = useAdvancedMarkerRef();
@@ -60,11 +59,11 @@ export function GoogleMapLocation({
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
   if (!apiKey || quotaExceeded) {
-    const embedQuery = encodeURIComponent('SCF-92, Sector 14 Main Market, Gurugram, Haryana 122007');
+    const embedQuery = encodeURIComponent('SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007');
     return (
       <div className={`relative w-full ${heightClass} rounded-xl overflow-hidden border border-[#E5E5EA] bg-[#F5F5F7]`}>
         <iframe
-          title="Refix Pro Sector 14 Gurugram Location"
+          title="Refix Pro SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007 Location"
           src={`https://maps.google.com/maps?q=${embedQuery}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
           className="w-full h-full border-0"
           loading="lazy"
@@ -74,7 +73,7 @@ export function GoogleMapLocation({
           <MapPin className="w-4 h-4 text-[#0066CC] shrink-0" />
           <div className="text-xs">
             <p className="font-semibold text-[#1D1D1F]">{settings.businessName}</p>
-            <p className="text-[#6E6E73]">SCF-92, Sector 14 Main Market</p>
+            <p className="text-[#6E6E73]">SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007</p>
           </div>
           <a
             href={DIRECTIONS_URL}
@@ -91,18 +90,16 @@ export function GoogleMapLocation({
 
   return (
     <div className={`w-full ${heightClass} rounded-xl overflow-hidden border border-[#E5E5EA] bg-[#F5F5F7]`}>
-      <APIProvider apiKey={apiKey} libraries={['marker']} language="en" region="IN">
-        <GoogleMap
-          mapId="DEMO_MAP_ID"
-          defaultCenter={REFIX_PRO_COORDS}
-          defaultZoom={16}
-          gestureHandling="cooperative"
-          internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
-          style={{ width: '100%', height: '100%' }}
-        >
-          <RefixMarker address={settings.address} />
-        </GoogleMap>
-      </APIProvider>
+      <GoogleMap
+        mapId="DEMO_MAP_ID"
+        defaultCenter={REFIX_PRO_COORDS}
+        defaultZoom={16}
+        gestureHandling="cooperative"
+        internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
+        style={{ width: '100%', height: '100%' }}
+      >
+        <RefixMarker address={settings.address} />
+      </GoogleMap>
     </div>
   );
 }

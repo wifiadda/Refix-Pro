@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { APIProvider } from '@vis.gl/react-google-maps';
+import { MotionConfig } from 'motion/react';
 import { AppProvider } from './context/AppContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { FloatingActions } from './components/FloatingActions';
+import { LiveGoogleReviewsSync } from './components/LiveGoogleReviewsSync';
 import { ToastContainer, type ToastMessage } from './components/Toast';
 import { HomePage } from './pages/HomePage';
 import { ServicesPage } from './pages/ServicesPage';
@@ -15,6 +18,9 @@ import { BlogPage } from './pages/BlogPage';
 import { BlogPostPage } from './pages/BlogPostPage';
 import { ContactPage } from './pages/ContactPage';
 import { LegalPage } from './pages/LegalPage';
+import { ReviewsPage } from './pages/ReviewsPage';
+import { FaqPage } from './pages/FaqPage';
+import { CustomerDashboardPage } from './pages/CustomerDashboardPage';
 import { AdminPage } from './pages/AdminPage';
 
 function ScrollToTop() {
@@ -31,6 +37,8 @@ function AppShell() {
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [quotaExceeded, setQuotaExceeded] = useState(false);
+
+  const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
   useEffect(() => {
     const handler = () => setQuotaExceeded(true);
@@ -50,7 +58,7 @@ function AppShell() {
     }, 4500);
   }, []);
 
-  return (
+  const appTree = (
     <div className="min-h-screen flex flex-col bg-white text-[#1D1D1F] antialiased">
       <ScrollToTop />
 
@@ -76,11 +84,13 @@ function AppShell() {
 
       <div className="flex-1">
         <Routes>
-          <Route path="/" element={<HomePage quotaExceeded={quotaExceeded} />} />
+          <Route path="/" element={<HomePage quotaExceeded={quotaExceeded} onNotify={notify} />} />
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/models" element={<ModelsPage />} />
           <Route path="/book" element={<BookRepairPage onNotify={notify} />} />
           <Route path="/track" element={<TrackRepairPage />} />
+          <Route path="/reviews" element={<ReviewsPage onNotify={notify} />} />
+          <Route path="/faq" element={<FaqPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/blog" element={<BlogPage />} />
           <Route path="/blog/:slug" element={<BlogPostPage />} />
@@ -90,7 +100,12 @@ function AppShell() {
           />
           <Route path="/privacy-policy" element={<LegalPage type="privacy" />} />
           <Route path="/terms-and-conditions" element={<LegalPage type="terms" />} />
+          <Route path="/warranty-and-refund-policy" element={<LegalPage type="warranty" />} />
+          <Route path="/warranty-policy" element={<Navigate to="/warranty-and-refund-policy" replace />} />
+          <Route path="/data-protection-policy" element={<LegalPage type="data" />} />
+          <Route path="/cookie-policy" element={<LegalPage type="cookies" />} />
           <Route path="/repair-disclaimer" element={<LegalPage type="disclaimer" />} />
+          <Route path="/dashboard" element={<CustomerDashboardPage onNotify={notify} />} />
           <Route path="/admin" element={<AdminPage onNotify={notify} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
@@ -100,14 +115,32 @@ function AppShell() {
       {!isAdminRoute && <FloatingActions />}
     </div>
   );
+
+  if (mapsApiKey && !quotaExceeded) {
+    return (
+      <APIProvider
+        apiKey={mapsApiKey}
+        libraries={['places', 'marker']}
+        language="en"
+        region="IN"
+      >
+        <LiveGoogleReviewsSync />
+        {appTree}
+      </APIProvider>
+    );
+  }
+
+  return appTree;
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppProvider>
-        <AppShell />
-      </AppProvider>
-    </BrowserRouter>
+    <MotionConfig reducedMotion="user">
+      <BrowserRouter>
+        <AppProvider>
+          <AppShell />
+        </AppProvider>
+      </BrowserRouter>
+    </MotionConfig>
   );
 }

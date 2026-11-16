@@ -5,6 +5,12 @@ import { useApp } from '../context/AppContext';
 import { MACBOOK_CATEGORIES, MacBookCategory } from '../types';
 import { useSeoMeta } from '../utils/seo';
 import { buildServiceWhatsAppMessage, buildWhatsAppUrl } from '../utils/whatsapp';
+import {
+  FadeInSection,
+  HeroReveal,
+  StaggerCard,
+  StaggerContainer,
+} from '../components/MotionPrimitives';
 
 const COMMON_MODEL_PROBLEMS_BY_CATEGORY: Record<string, string[]> = {
   'iPad & Tablet': [
@@ -88,8 +94,8 @@ export function ModelsPage() {
   return (
     <div className="bg-white min-h-screen">
       {/* Header */}
-      <section className="bg-[#F5F5F7] border-b border-[#E5E5EA] py-12 lg:py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
+      <section className="bg-gradient-to-b from-[#F5F5F7] to-white border-b border-[#E5E5EA] py-12 lg:py-16">
+        <HeroReveal className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 space-y-4">
           <nav aria-label="Breadcrumb" className="text-xs text-[#6E6E73] flex items-center gap-2">
             <Link to="/" className="hover:text-[#1D1D1F]">Home</Link>
             <span>/</span>
@@ -101,12 +107,12 @@ export function ModelsPage() {
           <p className="text-base text-[#424245] max-w-3xl leading-relaxed">
             {modelsCopy.subheadline}
           </p>
-        </div>
+        </HeroReveal>
       </section>
 
       {/* Interactive 4-Step Model Compatibility & Enquiry Selector */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="rounded-2xl border border-[#E5E5EA] bg-[#F5F5F7] p-6 sm:p-8">
+      <section className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 py-12">
+        <FadeInSection className="rounded-2xl border border-[#E5E5EA] bg-[#F5F5F7] p-6 sm:p-8">
           <div className="max-w-2xl mb-6">
             <h2 className="text-2xl font-bold text-[#1D1D1F]">
               {modelsCopy.selectorHeading}
@@ -205,11 +211,11 @@ export function ModelsPage() {
             <Info className="w-3.5 h-3.5 text-[#0066CC] shrink-0" />
             {modelsCopy.selectorNotice}
           </p>
-        </div>
+        </FadeInSection>
       </section>
 
       {/* Model Category Tabs & Catalog */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+      <section className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 pb-16">
         <div className="flex flex-wrap items-center gap-1.5 mb-8">
           {['All', ...MACBOOK_CATEGORIES].map((cat) => (
             <button
@@ -227,13 +233,13 @@ export function ModelsPage() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filteredModels.map((m) => {
             const DeviceIcon = getDeviceIcon(m.category);
             return (
-              <div
+              <StaggerCard
                 key={m.id}
-                className="p-6 rounded-2xl border border-[#E5E5EA] bg-white flex flex-col justify-between space-y-5"
+                className="p-6 rounded-2xl border border-[#E5E5EA] hover:border-[#0066CC]/45 hover:shadow-[0_12px_30px_-18px_rgba(0,102,204,0.16)] transition-all bg-white flex flex-col justify-between space-y-5"
               >
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-4">
@@ -299,10 +305,10 @@ export function ModelsPage() {
                     Ask Technician
                   </a>
                 </div>
-              </div>
+              </StaggerCard>
             );
           })}
-        </div>
+        </StaggerContainer>
       </section>
     </div>
   );

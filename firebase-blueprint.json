@@ -28,11 +28,13 @@
         "businessHours": { "type": "string", "minLength": 2, "maxLength": 200 },
         "googleRating": { "type": "number" },
         "googleReviewCount": { "type": "number" },
+        "googlePlaceId": { "type": "string", "maxLength": 160 },
         "googleReviewsUrl": { "type": "string", "maxLength": 400 },
         "logoUrl": { "type": "string", "maxLength": 300000 },
         "heroHeadline": { "type": "string", "minLength": 5, "maxLength": 180 },
         "heroSubheadline": { "type": "string", "minLength": 10, "maxLength": 500 },
         "heroImageUrl": { "type": "string", "maxLength": 300000 },
+        "heroSlides": { "type": "array" },
         "headerCtaText": { "type": "string", "maxLength": 60 },
         "headerCtaUrl": { "type": "string", "maxLength": 160 },
         "navLinks": { "type": "array" },
@@ -101,6 +103,7 @@
       "description": "Customer MacBook repair booking submission with private PII.",
       "type": "object",
       "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
         "enquiryCode": { "type": "string", "minLength": 4, "maxLength": 32, "pattern": "^RP-[A-Z0-9-]+$" },
         "customerName": { "type": "string", "minLength": 2, "maxLength": 120 },
         "mobile": { "type": "string", "minLength": 7, "maxLength": 25 },
@@ -151,12 +154,15 @@
       "description": "General customer contact message submitted from the Contact page.",
       "type": "object",
       "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
         "name": { "type": "string", "minLength": 2, "maxLength": 120 },
         "phone": { "type": "string", "minLength": 7, "maxLength": 25 },
         "email": { "type": "string", "maxLength": 160 },
         "subject": { "type": "string", "minLength": 2, "maxLength": 160 },
         "message": { "type": "string", "minLength": 5, "maxLength": 2000 },
         "isRead": { "type": "boolean" },
+        "adminReply": { "type": "string", "maxLength": 2000 },
+        "repliedAt": { "type": "string", "maxLength": 60 },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "phone", "subject", "message", "isRead", "createdAt"]
@@ -200,7 +206,7 @@
     },
     "Review": {
       "title": "Review",
-      "description": "Verified business-supplied customer review.",
+      "description": "Public customer-submitted review or verified Google Business Profile review.",
       "type": "object",
       "properties": {
         "authorLabel": { "type": "string", "minLength": 2, "maxLength": 100 },

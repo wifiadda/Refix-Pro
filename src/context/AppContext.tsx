@@ -42,6 +42,7 @@ import type {
   BlogPost,
   ContactMessage,
   GalleryImageItem,
+  GoogleLiveProfile,
   MacBookModelItem,
   RepairEnquiry,
   RepairTrackingRecord,
@@ -49,6 +50,18 @@ import type {
   ServiceItem,
   WebsiteSettings,
 } from '../types';
+
+export const DEFAULT_GOOGLE_LIVE_PROFILE: GoogleLiveProfile = {
+  loaded: false,
+  loading: false,
+  error: null,
+  placeId: null,
+  displayName: null,
+  rating: null,
+  userRatingCount: null,
+  googleMapsUri: null,
+  reviews: [],
+};
 
 interface NewRepairEnquiryInput {
   customerName: string;
@@ -84,12 +97,18 @@ interface AppContextValue {
   galleryImages: GalleryImageItem[];
   publicLoading: boolean;
 
-  // Auth & Admin
+  // Auth & Admin / Customer
   user: User | null;
   authReady: boolean;
   isAdmin: boolean;
   adminLogin: () => Promise<void>;
   adminLogout: () => Promise<void>;
+  customerLogin: () => Promise<void>;
+  customerLogout: () => Promise<void>;
+  customerEnquiries: RepairEnquiry[];
+  customerMessages: ContactMessage[];
+  customerLoading: boolean;
+  refreshCustomerData: () => Promise<void>;
 
   // Admin datasets
   adminServices: ServiceItem[];
@@ -109,6 +128,7 @@ interface AppContextValue {
   submitRepairEnquiry: (input: NewRepairEnquiryInput) => Promise<{ enquiryId: string; enquiryCode: string }>;
   trackRepairEnquiry: (enquiryCode: string, mobile: string) => Promise<RepairTrackingRecord | null>;
   submitContactMessage: (input: NewContactMessageInput) => Promise<void>;
+  submitPublicReview: (input: { name: string; device?: string; rating: number; quote: string }) => Promise<void>;
 
   // Admin mutations
   updateEnquiry: (id: string, patch: Partial<RepairEnquiry>) => Promise<void>;
@@ -122,6 +142,7 @@ interface AppContextValue {
   saveBlogCategory: (item: Omit<BlogCategory, 'createdAt'>) => Promise<void>;
   deleteBlogCategory: (id: string) => Promise<void>;
   markMessageRead: (id: string, isRead: boolean) => Promise<void>;
+  replyToContactMessage: (id: string, adminReply: string) => Promise<void>;
   deleteContactMessage: (id: string) => Promise<void>;
   saveReview: (item: Omit<ReviewItem, 'createdAt'>) => Promise<void>;
   deleteReview: (id: string) => Promise<void>;
@@ -130,6 +151,12 @@ interface AppContextValue {
   saveWebsiteSettings: (next: WebsiteSettings) => Promise<void>;
   saveAdminUser: (adminUser: Omit<AdminUser, 'id' | 'createdAt'>) => Promise<void>;
   removeAdminUser: (uid: string) => Promise<void>;
+
+  // Live Google Business Profile sync (transient Places SDK state)
+  googleLiveProfile: GoogleLiveProfile;
+  setGoogleLiveProfile: React.Dispatch<React.SetStateAction<GoogleLiveProfile>>;
+  googleSyncNonce: number;
+  triggerGoogleProfileSync: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -167,15 +194,35 @@ function mergeWebsiteSettings(raw?: Partial<WebsiteSettings>): WebsiteSettings {
   const def = DEFAULT_WEBSITE_SETTINGS;
   const src = raw || {};
   const srcPage = src.pageContent || ({} as Partial<WebsiteSettings['pageContent']>);
+  const rawAddress = (src.address || '').trim();
+  const normalizedAddress =
+    !rawAddress || rawAddress.toLowerCase().includes('sector 14 main market')
+      ? def.address
+      : rawAddress;
+  const rawServiceAreas = (src.serviceAreasText || '').trim();
+  const normalizedServiceAreas = /cyber city|mg road|golf course|sohna road/i.test(rawServiceAreas)
+    ? ''
+    : rawServiceAreas;
+
+  const baseQuickLinks =
+    Array.isArray(src.footerQuickLinks) && src.footerQuickLinks.length > 0
+      ? src.footerQuickLinks
+      : def.footerQuickLinks;
+  const hasDashboardLink = baseQuickLinks.some((l) => l.to === '/dashboard');
+  const mergedQuickLinks = hasDashboardLink
+    ? baseQuickLinks
+    : [...baseQuickLinks, { label: 'Customer Dashboard', to: '/dashboard' }];
+
   return {
     ...def,
     ...src,
+    address: normalizedAddress,
+    serviceAreasText: normalizedServiceAreas,
+    heroSlides:
+      Array.isArray(src.heroSlides) && src.heroSlides.length > 0 ? src.heroSlides : def.heroSlides,
     navLinks:
       Array.isArray(src.navLinks) && src.navLinks.length > 0 ? src.navLinks : def.navLinks,
-    footerQuickLinks:
-      Array.isArray(src.footerQuickLinks) && src.footerQuickLinks.length > 0
-        ? src.footerQuickLinks
-        : def.footerQuickLinks,
+    footerQuickLinks: mergedQuickLinks,
     footerServiceLinks:
       Array.isArray(src.footerServiceLinks) && src.footerServiceLinks.length > 0
         ? src.footerServiceLinks
@@ -218,6 +265,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [adminLoading, setAdminLoading] = useState(false);
+  const [customerEnquiries, setCustomerEnquiries] = useState<RepairEnquiry[]>([]);
+  const [customerMessages, setCustomerMessages] = useState<ContactMessage[]>([]);
+  const [customerLoading, setCustomerLoading] = useState(false);
+  const [googleLiveProfile, setGoogleLiveProfile] = useState<GoogleLiveProfile>(
+    DEFAULT_GOOGLE_LIVE_PROFILE
+  );
+  const [googleSyncNonce, setGoogleSyncNonce] = useState(0);
+
+  const triggerGoogleProfileSync = useCallback(() => {
+    setGoogleSyncNonce((n) => n + 1);
+  }, []);
 
   const refreshPublicData = useCallback(async () => {
     setPublicLoading(true);
@@ -269,7 +327,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!revSnap.empty) {
-        setReviews(revSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ReviewItem, 'id'>) })));
+        const loadedReviews = revSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ReviewItem, 'id'>) }));
+        loadedReviews.sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
+        if (!settingsSnap.exists()) {
+          const existingIds = new Set(loadedReviews.map((r) => r.id));
+          const missingDefaults = DEFAULT_REVIEWS.filter((r) => !existingIds.has(r.id));
+          setReviews([...loadedReviews, ...missingDefaults]);
+        } else {
+          setReviews(loadedReviews);
+        }
       } else {
         setReviews(DEFAULT_REVIEWS);
       }
@@ -333,7 +399,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!revSnap.empty) {
-        setAdminReviews(revSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ReviewItem, 'id'>) })));
+        const revList = revSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ReviewItem, 'id'>) }));
+        revList.sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
+        setAdminReviews(revList);
       } else {
         setAdminReviews([]);
       }
@@ -498,11 +566,81 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => unsub();
   }, []);
 
+  const refreshCustomerData = useCallback(async () => {
+    if (!user) {
+      setCustomerEnquiries([]);
+      setCustomerMessages([]);
+      return;
+    }
+    setCustomerLoading(true);
+    try {
+      const enqQueries = [
+        getDocs(query(collection(db, 'repairEnquiries'), where('userId', '==', user.uid))),
+      ];
+      const msgQueries = [
+        getDocs(query(collection(db, 'contactMessages'), where('userId', '==', user.uid))),
+      ];
+
+      if (user.emailVerified && user.email) {
+        enqQueries.push(
+          getDocs(query(collection(db, 'repairEnquiries'), where('email', '==', user.email)))
+        );
+        msgQueries.push(
+          getDocs(query(collection(db, 'contactMessages'), where('email', '==', user.email)))
+        );
+      }
+
+      const [enqSnaps, msgSnaps] = await Promise.all([
+        Promise.allSettled(enqQueries),
+        Promise.allSettled(msgQueries),
+      ]);
+
+      const enqMap = new Map<string, RepairEnquiry>();
+      for (const res of enqSnaps) {
+        if (res.status === 'fulfilled') {
+          for (const d of res.value.docs) {
+            enqMap.set(d.id, { id: d.id, ...(d.data() as Omit<RepairEnquiry, 'id'>) });
+          }
+        }
+      }
+      const mergedEnqs = Array.from(enqMap.values()).sort(
+        (a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt)
+      );
+      setCustomerEnquiries(mergedEnqs);
+
+      const msgMap = new Map<string, ContactMessage>();
+      for (const res of msgSnaps) {
+        if (res.status === 'fulfilled') {
+          for (const d of res.value.docs) {
+            msgMap.set(d.id, { id: d.id, ...(d.data() as Omit<ContactMessage, 'id'>) });
+          }
+        }
+      }
+      const mergedMsgs = Array.from(msgMap.values()).sort(
+        (a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt)
+      );
+      setCustomerMessages(mergedMsgs);
+    } catch (error) {
+      console.error('Customer data load error:', error);
+    } finally {
+      setCustomerLoading(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (isAdmin) {
       refreshAdminData();
     }
   }, [isAdmin, refreshAdminData]);
+
+  useEffect(() => {
+    if (authReady && user) {
+      refreshCustomerData();
+    } else if (authReady && !user) {
+      setCustomerEnquiries([]);
+      setCustomerMessages([]);
+    }
+  }, [authReady, user, refreshCustomerData]);
 
   const adminLogin = async () => {
     const provider = new GoogleAuthProvider();
@@ -515,6 +653,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsAdmin(false);
     setEnquiries([]);
     setContactMessages([]);
+    setCustomerEnquiries([]);
+    setCustomerMessages([]);
+  };
+
+  const customerLogin = async () => {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    await signInWithPopup(auth, provider);
+  };
+
+  const customerLogout = async () => {
+    await signOut(auth);
+    setIsAdmin(false);
+    setEnquiries([]);
+    setContactMessages([]);
+    setCustomerEnquiries([]);
+    setCustomerMessages([]);
   };
 
   const submitRepairEnquiry = async (input: NewRepairEnquiryInput) => {
@@ -524,11 +679,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const trackingId = await computeTrackingId(enquiryCode, input.mobile);
 
     const payload = {
+      ...(user?.uid ? { userId: user.uid } : {}),
       enquiryCode,
       customerName: input.customerName.trim().slice(0, 120),
       mobile: input.mobile.trim().slice(0, 25),
       whatsapp: (input.whatsapp || input.mobile).trim().slice(0, 25),
-      email: (input.email || '').trim().slice(0, 160),
+      email: (input.email || user?.email || '').trim().slice(0, 160),
       macbookModel: input.macbookModel.trim().slice(0, 140),
       macbookYear: (input.macbookYear || '').trim().slice(0, 40),
       processorType: (input.processorType || 'Confirmed at Inspection').trim().slice(0, 80),
@@ -563,6 +719,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       batch.set(doc(db, 'repairTracking', trackingId), trackingPayload);
       await batch.commit();
 
+      if (user) {
+        await refreshCustomerData();
+      }
       if (isAdmin) {
         await refreshAdminData();
       }
@@ -591,17 +750,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const submitContactMessage = async (input: NewContactMessageInput) => {
     const messageId = makeValidId('msg');
     const payload = {
+      ...(user?.uid ? { userId: user.uid } : {}),
       name: input.name.trim().slice(0, 120),
       phone: input.phone.trim().slice(0, 25),
-      email: (input.email || '').trim().slice(0, 160),
+      email: (input.email || user?.email || '').trim().slice(0, 160),
       subject: input.subject.trim().slice(0, 160),
       message: input.message.trim().slice(0, 2000),
       isRead: false,
+      adminReply: '',
+      repliedAt: '',
       createdAt: serverTimestamp(),
     };
 
     try {
       await setDoc(doc(db, 'contactMessages', messageId), payload);
+      if (user) {
+        await refreshCustomerData();
+      }
       if (isAdmin) {
         await refreshAdminData();
       }
@@ -826,17 +991,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const markMessageRead = async (id: string, isRead: boolean) => {
-    const existingMsg = contactMessages.find((m) => m.id === id);
-    if (!existingMsg) return;
     try {
       await updateDoc(doc(db, 'contactMessages', id), {
-        name: existingMsg.name,
-        phone: existingMsg.phone,
-        email: existingMsg.email || '',
-        subject: existingMsg.subject,
-        message: existingMsg.message,
         isRead,
-        createdAt: existingMsg.createdAt,
+      });
+      await refreshAdminData();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `contactMessages/${id}`);
+    }
+  };
+
+  const replyToContactMessage = async (id: string, adminReply: string) => {
+    const cleanReply = adminReply.trim().slice(0, 2000);
+    try {
+      await updateDoc(doc(db, 'contactMessages', id), {
+        isRead: true,
+        adminReply: cleanReply,
+        repliedAt: cleanReply
+          ? new Date().toLocaleString('en-IN', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : '',
       });
       await refreshAdminData();
     } catch (error) {
@@ -850,6 +1029,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await refreshAdminData();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `contactMessages/${id}`);
+    }
+  };
+
+  const submitPublicReview = async (input: {
+    name: string;
+    device?: string;
+    rating: number;
+    quote: string;
+  }) => {
+    const id = makeValidId('rev');
+    const cleanName = input.name.trim().slice(0, 60);
+    const cleanDevice = (input.device || '').trim().slice(0, 35);
+    const authorLabel = cleanDevice ? `${cleanName} · ${cleanDevice}` : cleanName;
+    const dateLabel = new Date().toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    const payload = {
+      authorLabel: authorLabel.slice(0, 100),
+      rating: Math.min(5, Math.max(1, Math.round(Number(input.rating) || 5))),
+      quote: input.quote.trim().slice(0, 800),
+      source: 'Website Customer Review',
+      dateLabel: dateLabel.slice(0, 60),
+      isVisible: true,
+      createdAt: serverTimestamp(),
+    };
+
+    try {
+      await setDoc(doc(db, 'reviews', id), payload);
+      await refreshPublicData();
+      if (isAdmin) {
+        await refreshAdminData();
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `reviews/${id}`);
     }
   };
 
@@ -950,11 +1166,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       businessHours: merged.businessHours.trim().slice(0, 200),
       googleRating: Number(merged.googleRating) || 4.7,
       googleReviewCount: Number(merged.googleReviewCount) || 45,
+      googlePlaceId: (merged.googlePlaceId || '').trim().slice(0, 160),
       googleReviewsUrl: (merged.googleReviewsUrl || '').trim().slice(0, 400),
       logoUrl: (merged.logoUrl || '').slice(0, 300000),
       heroHeadline: merged.heroHeadline.trim().slice(0, 180),
       heroSubheadline: merged.heroSubheadline.trim().slice(0, 500),
       heroImageUrl: (merged.heroImageUrl || '').slice(0, 300000),
+      heroSlides: (merged.heroSlides || [])
+        .filter((s) => s.imageUrl && s.imageUrl.trim())
+        .slice(0, 10)
+        .map((s, idx) => ({
+          id: (s.id || `slide-${idx + 1}`).slice(0, 60),
+          title: (s.title || '').trim().slice(0, 140),
+          subtitle: (s.subtitle || '').trim().slice(0, 280),
+          imageUrl: s.imageUrl.slice(0, 300000),
+        })),
       headerCtaText: (merged.headerCtaText || 'Book a Repair').trim().slice(0, 60),
       headerCtaUrl: (merged.headerCtaUrl || '/book').trim().slice(0, 160),
       navLinks: (merged.navLinks || [])
@@ -1056,6 +1282,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         isAdmin,
         adminLogin,
         adminLogout,
+        customerLogin,
+        customerLogout,
+        customerEnquiries,
+        customerMessages,
+        customerLoading,
+        refreshCustomerData,
         adminServices,
         adminModels,
         adminBlogPosts,
@@ -1071,6 +1303,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         submitRepairEnquiry,
         trackRepairEnquiry,
         submitContactMessage,
+        submitPublicReview,
         updateEnquiry,
         deleteEnquiry,
         saveService,
@@ -1082,6 +1315,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         saveBlogCategory,
         deleteBlogCategory,
         markMessageRead,
+        replyToContactMessage,
         deleteContactMessage,
         saveReview,
         deleteReview,
@@ -1090,6 +1324,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         saveWebsiteSettings,
         saveAdminUser,
         removeAdminUser,
+        googleLiveProfile,
+        setGoogleLiveProfile,
+        googleSyncNonce,
+        triggerGoogleProfileSync,
       }}
     >
       {children}

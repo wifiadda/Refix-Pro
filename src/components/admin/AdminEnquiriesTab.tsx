@@ -378,7 +378,7 @@ export function AdminEnquiriesTab({
                 <a
                   href={buildWhatsAppUrl(
                     selected.whatsapp || selected.mobile,
-                    `Hello ${selected.customerName}, Refix Pro Sector 14 update for ${selected.enquiryCode} (${selected.macbookModel}): Status: ${editStatus}${editEstimate ? `, Estimate: ${editEstimate}` : ''}.`
+                    `Hello ${selected.customerName}, Refix Pro (SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007) update for ${selected.enquiryCode} (${selected.macbookModel}): Status: ${editStatus}${editEstimate ? `, Estimate: ${editEstimate}` : ''}.`
                   )}
                   target="_blank"
                   rel="noopener noreferrer"

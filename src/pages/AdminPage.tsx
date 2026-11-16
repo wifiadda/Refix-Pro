@@ -250,7 +250,7 @@ export function AdminPage({
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 max-w-6xl">
+      <main className="flex-1 w-full p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Top Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E5E5EA]">
           <div>

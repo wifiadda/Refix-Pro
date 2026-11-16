@@ -411,26 +411,53 @@ function formatInr(amount: number): string {
 
 export function PriceEstimatorTool() {
   const { settings } = useApp();
+
+  const sortedMacModels = useMemo(
+    () =>
+      MODEL_GROUPS.filter((m) => m.deviceType === 'macbook').sort(
+        (a, b) => a.multiplier - b.multiplier
+      ),
+    []
+  );
+
+  const sortedMacIssues = useMemo(
+    () =>
+      ISSUE_ESTIMATES.filter((i) => i.deviceTypes.includes('macbook')).sort(
+        (a, b) => a.baseMin - b.baseMin
+      ),
+    []
+  );
+
   const [deviceType, setDeviceType] = useState<DeviceType>('macbook');
-  const [selectedModelId, setSelectedModelId] = useState('air-m1');
-  const [selectedIssueId, setSelectedIssueId] = useState('mb-display');
+  const [selectedModelId, setSelectedModelId] = useState(() => sortedMacModels[0]?.id || 'air-intel');
+  const [selectedIssueId, setSelectedIssueId] = useState(() => sortedMacIssues[0]?.id || 'mb-macos-software');
 
   const modelsForDevice = useMemo(
-    () => MODEL_GROUPS.filter((m) => m.deviceType === deviceType),
+    () =>
+      MODEL_GROUPS.filter((m) => m.deviceType === deviceType).sort(
+        (a, b) => a.multiplier - b.multiplier
+      ),
     [deviceType]
   );
 
   const issuesForDevice = useMemo(
-    () => ISSUE_ESTIMATES.filter((i) => i.deviceTypes.includes(deviceType)),
+    () =>
+      ISSUE_ESTIMATES.filter((i) => i.deviceTypes.includes(deviceType)).sort(
+        (a, b) => a.baseMin - b.baseMin
+      ),
     [deviceType]
   );
 
   const handleDeviceSwitch = (nextType: DeviceType) => {
     setDeviceType(nextType);
-    const firstModel = MODEL_GROUPS.find((m) => m.deviceType === nextType);
-    const firstIssue = ISSUE_ESTIMATES.find((i) => i.deviceTypes.includes(nextType));
-    if (firstModel) setSelectedModelId(firstModel.id);
-    if (firstIssue) setSelectedIssueId(firstIssue.id);
+    const nextModels = MODEL_GROUPS.filter((m) => m.deviceType === nextType).sort(
+      (a, b) => a.multiplier - b.multiplier
+    );
+    const nextIssues = ISSUE_ESTIMATES.filter((i) => i.deviceTypes.includes(nextType)).sort(
+      (a, b) => a.baseMin - b.baseMin
+    );
+    if (nextModels[0]) setSelectedModelId(nextModels[0].id);
+    if (nextIssues[0]) setSelectedIssueId(nextIssues[0].id);
   };
 
   const selectedModel = useMemo(
@@ -467,18 +494,18 @@ export function PriceEstimatorTool() {
       <div className="p-6 sm:p-8 border-b border-[#E5E5EA] bg-gradient-to-r from-[#F5F5F7] to-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <p className="text-xs font-semibold text-[#0066CC] tracking-tight">
-            Transparent Estimate Guide · Sector 14, Gurugram
+            Starting Low to Full Repair · SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007
           </p>
           <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1D1D1F] mt-1">
-            Apple Repair Price Estimator
+            Apple Repair Price Estimator (Min to High)
           </h3>
           <p className="text-xs sm:text-sm text-[#424245] mt-1">
-            Choose MacBook, iPad, or iPhone and your original A-number model to view a transparent rough repair range.
+            Models and issues are arranged from lowest starting cost to highest repair tier for full transparency.
           </p>
         </div>
         <div className="inline-flex items-center gap-2 text-xs font-semibold text-[#1D1D1F] shrink-0">
           <Calculator className="w-4 h-4 text-[#0066CC]" />
-          <span>Instant Rough Range</span>
+          <span>Min → High Pricing</span>
         </div>
       </div>
 
@@ -514,7 +541,7 @@ export function PriceEstimatorTool() {
 
           <div>
             <label htmlFor="estimator-model" className="block text-xs font-semibold text-[#1D1D1F] mb-2">
-              2. Select Original Model & A-Number
+              2. Select Original Model (Lowest Cost Tier First)
             </label>
             <select
               id="estimator-model"
@@ -532,7 +559,7 @@ export function PriceEstimatorTool() {
 
           <div>
             <label htmlFor="estimator-issue" className="block text-xs font-semibold text-[#1D1D1F] mb-2">
-              3. Select Specific Issue
+              3. Select Repair Issue (Minimum Cost → Maximum Cost)
             </label>
             <select
               id="estimator-issue"
@@ -540,18 +567,22 @@ export function PriceEstimatorTool() {
               onChange={(e) => setSelectedIssueId(e.target.value)}
               className="w-full px-3.5 py-3 rounded-xl border border-[#D2D2D7] bg-white text-sm font-medium text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
             >
-              {issuesForDevice.map((iss) => (
-                <option key={iss.id} value={iss.id}>
-                  {iss.title}
-                </option>
-              ))}
+              {issuesForDevice.map((iss) => {
+                const startPrice = roundToNearestHundred(iss.baseMin * selectedModel.multiplier);
+                const endPrice = roundToNearestHundred(iss.baseMax * selectedModel.multiplier);
+                return (
+                  <option key={iss.id} value={iss.id}>
+                    {formatInr(startPrice)} – {formatInr(endPrice)} · {iss.title}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
           <div className="p-4 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA] flex items-start gap-2.5 text-xs text-[#424245]">
             <Info className="w-4 h-4 text-[#0066CC] shrink-0 mt-0.5" />
             <p className="leading-relaxed">
-              This is an indicative price range. Final repair cost, original/OEM part grade, and component availability are confirmed after physical bench inspection at Refix Pro, Sector 14, Gurugram.
+              This is an indicative minimum-to-maximum price range. Final repair cost, original/OEM part grade, and component availability are confirmed after physical bench inspection at Refix Pro, SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007.
             </p>
           </div>
         </div>

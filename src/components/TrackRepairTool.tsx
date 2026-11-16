@@ -277,7 +277,7 @@ export function TrackRepairTool({
               <div className="space-y-1 text-sm">
                 <p className="font-bold text-red-950">This Repair Request Was Marked Cancelled</p>
                 <p className="text-red-900 text-xs sm:text-sm">
-                  If you would like to reopen your MacBook inspection or reschedule a visit at Sector 14, message our desk on WhatsApp or call us directly.
+                  If you would like to reopen your MacBook inspection or reschedule a visit at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007, message our desk on WhatsApp or call us directly.
                 </p>
               </div>
             </div>
@@ -349,7 +349,7 @@ export function TrackRepairTool({
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
             <p className="text-xs text-[#6E6E73] flex items-center gap-1.5">
               <Wrench className="w-3.5 h-3.5 text-[#0066CC]" />
-              Refix Pro Desk · SCF-92, Sector 14 Main Market, Gurugram
+              Refix Pro Desk · SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007
             </p>
             <div className="flex flex-wrap gap-2.5">
               <a

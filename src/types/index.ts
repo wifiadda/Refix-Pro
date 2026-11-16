@@ -88,6 +88,13 @@ export interface FaqItem {
   a: string;
 }
 
+export interface HeroSlideItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  imageUrl: string;
+}
+
 export interface PageContentSettings {
   home: {
     heroEyebrow: string;
@@ -166,11 +173,13 @@ export interface WebsiteSettings {
   businessHours: string;
   googleRating: number;
   googleReviewCount: number;
+  googlePlaceId: string;
   googleReviewsUrl: string;
   logoUrl: string;
   heroHeadline: string;
   heroSubheadline: string;
   heroImageUrl: string;
+  heroSlides: HeroSlideItem[];
   headerCtaText: string;
   headerCtaUrl: string;
   navLinks: NavLinkItem[];
@@ -221,6 +230,7 @@ export interface MacBookModelItem {
 
 export interface RepairEnquiry {
   id: string;
+  userId?: string;
   enquiryCode: string;
   customerName: string;
   mobile: string;
@@ -257,12 +267,15 @@ export interface RepairTrackingRecord {
 
 export interface ContactMessage {
   id: string;
+  userId?: string;
   name: string;
   phone: string;
   email: string;
   subject: string;
   message: string;
   isRead: boolean;
+  adminReply?: string;
+  repliedAt?: string;
   createdAt?: unknown;
 }
 
@@ -319,4 +332,27 @@ export interface GalleryImageItem {
   category: string;
   sortOrder: number;
   createdAt?: unknown;
+}
+
+export interface GoogleLiveReview {
+  id: string;
+  authorName: string;
+  authorUri: string | null;
+  authorPhotoUri: string | null;
+  rating: number;
+  text: string;
+  relativeTime: string;
+  googleMapsUri: string | null;
+}
+
+export interface GoogleLiveProfile {
+  loaded: boolean;
+  loading: boolean;
+  error: string | null;
+  placeId: string | null;
+  displayName: string | null;
+  rating: number | null;
+  userRatingCount: number | null;
+  googleMapsUri: string | null;
+  reviews: GoogleLiveReview[];
 }

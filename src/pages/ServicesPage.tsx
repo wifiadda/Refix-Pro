@@ -7,6 +7,12 @@ import { useSeoMeta } from '../utils/seo';
 import { buildServiceWhatsAppMessage, buildWhatsAppUrl } from '../utils/whatsapp';
 import { SafeImage } from '../components/SafeImage';
 import { PriceEstimatorTool } from '../components/PriceEstimatorTool';
+import {
+  FadeInSection,
+  HeroReveal,
+  StaggerCard,
+  StaggerContainer,
+} from '../components/MotionPrimitives';
 
 export function ServicesPage() {
   const { services, settings } = useApp();
@@ -33,13 +39,7 @@ export function ServicesPage() {
         address: settings.address,
         telephone: settings.phone,
       },
-      areaServed: [
-        'Sector 14, Gurugram',
-        'DLF Cyber City, Gurugram',
-        'MG Road, Gurugram',
-        'Golf Course Road, Gurugram',
-        'Sohna Road, Gurugram',
-      ],
+      areaServed: ['SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007'],
     },
   });
 
@@ -68,8 +68,8 @@ export function ServicesPage() {
   return (
     <div className="bg-white min-h-screen">
       {/* Page Header */}
-      <section className="bg-[#F5F5F7] border-b border-[#E5E5EA] py-12 lg:py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
+      <section className="bg-gradient-to-b from-[#F5F5F7] to-white border-b border-[#E5E5EA] py-12 lg:py-16">
+        <HeroReveal className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 space-y-4">
           <nav aria-label="Breadcrumb" className="text-xs text-[#6E6E73] flex items-center gap-2">
             <Link to="/" className="hover:text-[#1D1D1F]">Home</Link>
             <span>/</span>
@@ -81,12 +81,12 @@ export function ServicesPage() {
           <p className="text-base text-[#424245] max-w-3xl leading-relaxed">
             {srvCopy.subheadline}
           </p>
-        </div>
+        </HeroReveal>
       </section>
 
       {/* Filter & Search Bar */}
       <section className="border-b border-[#E5E5EA] bg-white sticky top-16 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-1.5">
             {['All', ...SERVICE_CATEGORIES].map((cat) => (
               <button
@@ -119,18 +119,27 @@ export function ServicesPage() {
       </section>
 
       {/* Availability Notice & Interactive Estimator */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
-        <div className="p-4 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA] flex items-start gap-3 text-xs sm:text-sm text-[#424245]">
-          <Info className="w-4 h-4 text-[#0066CC] shrink-0 mt-0.5" />
-          <p>
-            {srvCopy.noticeText}
-          </p>
+      <FadeInSection className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 pt-8 space-y-8">
+        <div className="p-4 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs sm:text-sm text-[#424245]">
+          <div className="flex items-start gap-3">
+            <Info className="w-4 h-4 text-[#0066CC] shrink-0 mt-0.5" />
+            <p>{srvCopy.noticeText}</p>
+          </div>
+          <div className="flex items-center gap-3 text-xs font-semibold shrink-0 pl-7 sm:pl-0">
+            <Link to="/warranty-and-refund-policy" className="text-[#0066CC] hover:underline whitespace-nowrap">
+              Warranty Policy
+            </Link>
+            <span className="text-[#D2D2D7]">·</span>
+            <Link to="/data-protection-policy" className="text-[#0066CC] hover:underline whitespace-nowrap">
+              Data Safety
+            </Link>
+          </div>
         </div>
         <PriceEstimatorTool />
-      </div>
+      </FadeInSection>
 
       {/* Services Grid */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 lg:py-14">
+      <section className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 py-10 lg:py-14">
         {filteredServices.length === 0 ? (
           <div className="py-16 text-center border border-[#E5E5EA] rounded-2xl bg-[#F5F5F7]">
             <p className="text-base font-semibold text-[#1D1D1F]">No matching MacBook services found.</p>
@@ -147,86 +156,85 @@ export function ServicesPage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
+          <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
             {filteredServices.map((srv) => {
               const waUrl = buildWhatsAppUrl(
                 settings.whatsapp,
                 buildServiceWhatsAppMessage(srv.title)
               );
               return (
-                <article
-                  key={srv.id}
-                  className="rounded-2xl border border-[#E5E5EA] bg-white overflow-hidden flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="aspect-[4/3] bg-[#F5F5F7] overflow-hidden">
-                      <SafeImage
-                        src={srv.imageUrl}
-                        alt={srv.title}
-                        className="w-full h-full object-cover"
-                      />
+                <StaggerCard key={srv.id}>
+                  <article className="h-full rounded-2xl border border-[#E5E5EA] bg-white overflow-hidden flex flex-col justify-between hover:border-[#0066CC]/45 hover:shadow-[0_14px_34px_-18px_rgba(0,102,204,0.18)] transition-all">
+                    <div>
+                      <div className="aspect-[4/3] bg-[#F5F5F7] overflow-hidden">
+                        <SafeImage
+                          src={srv.imageUrl}
+                          alt={srv.title}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="p-6 space-y-4">
+                        <div>
+                          <p className="text-xs text-[#6E6E73]">
+                            {srv.category}
+                            {srv.showPrice && srv.priceDisplay ? ` · ${srv.priceDisplay}` : ''}
+                          </p>
+                          <h2 className="text-xl font-bold text-[#1D1D1F] mt-1.5">
+                            {srv.title}
+                          </h2>
+                          <p className="text-sm text-[#424245] mt-2 leading-relaxed">
+                            {srv.shortDescription}
+                          </p>
+                        </div>
+
+                        <div>
+                          <h3 className="text-xs font-semibold text-[#1D1D1F] mb-2">
+                            Common Symptoms
+                          </h3>
+                          <ul className="space-y-1.5">
+                            {srv.symptoms.map((sym) => (
+                              <li key={sym} className="flex items-start gap-2 text-xs text-[#424245]">
+                                <Check className="w-3.5 h-3.5 text-[#0066CC] shrink-0 mt-0.5" />
+                                <span>{sym}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div className="pt-3 border-t border-[#F5F5F7]">
+                          <h3 className="text-xs font-semibold text-[#1D1D1F] mb-1">
+                            Repair Information
+                          </h3>
+                          <p className="text-xs text-[#6E6E73] leading-relaxed">
+                            {srv.repairInfo}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="p-6 space-y-4">
-                      <div>
-                        <p className="text-xs text-[#6E6E73]">
-                          {srv.category}
-                          {srv.showPrice && srv.priceDisplay ? ` · ${srv.priceDisplay}` : ''}
-                        </p>
-                        <h2 className="text-xl font-bold text-[#1D1D1F] mt-1.5">
-                          {srv.title}
-                        </h2>
-                        <p className="text-sm text-[#424245] mt-2 leading-relaxed">
-                          {srv.shortDescription}
-                        </p>
-                      </div>
 
-                      <div>
-                        <h3 className="text-xs font-semibold text-[#1D1D1F] mb-2">
-                          Common Symptoms
-                        </h3>
-                        <ul className="space-y-1.5">
-                          {srv.symptoms.map((sym) => (
-                            <li key={sym} className="flex items-start gap-2 text-xs text-[#424245]">
-                              <Check className="w-3.5 h-3.5 text-[#0066CC] shrink-0 mt-0.5" />
-                              <span>{sym}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      <div className="pt-3 border-t border-[#F5F5F7]">
-                        <h3 className="text-xs font-semibold text-[#1D1D1F] mb-1">
-                          Repair Information
-                        </h3>
-                        <p className="text-xs text-[#6E6E73] leading-relaxed">
-                          {srv.repairInfo}
-                        </p>
-                      </div>
+                    <div className="px-6 pb-6 pt-2 flex flex-wrap gap-2.5">
+                      <Link
+                        to={`/book?service=${encodeURIComponent(srv.title)}`}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] text-white text-xs font-semibold transition-colors whitespace-nowrap"
+                      >
+                        Book This Service
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                      <a
+                        href={waUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white text-xs font-semibold transition-colors whitespace-nowrap"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        WhatsApp
+                      </a>
                     </div>
-                  </div>
-
-                  <div className="px-6 pb-6 pt-2 flex flex-wrap gap-2.5">
-                    <Link
-                      to={`/book?service=${encodeURIComponent(srv.title)}`}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] text-white text-xs font-semibold transition-colors whitespace-nowrap"
-                    >
-                      Book This Service
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
-                    <a
-                      href={waUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white text-xs font-semibold transition-colors whitespace-nowrap"
-                    >
-                      <MessageCircle className="w-3.5 h-3.5" />
-                      WhatsApp
-                    </a>
-                  </div>
-                </article>
+                  </article>
+                </StaggerCard>
               );
             })}
-          </div>
+          </StaggerContainer>
         )}
       </section>
     </div>

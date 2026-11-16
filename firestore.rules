@@ -62,8 +62,8 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'businessName', 'tagline', 'phone', 'whatsapp', 'email', 'websiteUrl',
-          'address', 'businessHours', 'googleRating', 'googleReviewCount', 'googleReviewsUrl',
-          'logoUrl', 'heroHeadline', 'heroSubheadline', 'heroImageUrl',
+          'address', 'businessHours', 'googleRating', 'googleReviewCount', 'googlePlaceId', 'googleReviewsUrl',
+          'logoUrl', 'heroHeadline', 'heroSubheadline', 'heroImageUrl', 'heroSlides',
           'headerCtaText', 'headerCtaUrl', 'navLinks',
           'footerDescription', 'footerTagline', 'footerLegalText', 'footerQuickLinks', 'footerServiceLinks',
           'socialInstagram', 'socialFacebook',
@@ -80,11 +80,13 @@ service cloud.firestore {
         && data.businessHours is string && data.businessHours.size() >= 2 && data.businessHours.size() <= 200
         && data.googleRating is number && data.googleRating >= 0 && data.googleRating <= 5
         && data.googleReviewCount is number && data.googleReviewCount >= 0
+        && (!('googlePlaceId' in data) || (data.googlePlaceId is string && data.googlePlaceId.size() <= 160))
         && (!('googleReviewsUrl' in data) || (data.googleReviewsUrl is string && data.googleReviewsUrl.size() <= 400))
         && (!('logoUrl' in data) || (data.logoUrl is string && data.logoUrl.size() <= 300000))
         && data.heroHeadline is string && data.heroHeadline.size() >= 5 && data.heroHeadline.size() <= 180
         && data.heroSubheadline is string && data.heroSubheadline.size() >= 10 && data.heroSubheadline.size() <= 500
         && (!('heroImageUrl' in data) || (data.heroImageUrl is string && data.heroImageUrl.size() <= 300000))
+        && (!('heroSlides' in data) || (data.heroSlides is list && data.heroSlides.size() <= 10 && (data.heroSlides.size() == 0 || (data.heroSlides[0] is map && data.heroSlides[0].imageUrl is string))))
         && (!('headerCtaText' in data) || (data.headerCtaText is string && data.headerCtaText.size() <= 60))
         && (!('headerCtaUrl' in data) || (data.headerCtaUrl is string && data.headerCtaUrl.size() <= 160))
         && (!('navLinks' in data) || (data.navLinks is list && data.navLinks.size() <= 10 && (data.navLinks.size() == 0 || (data.navLinks[0] is map && data.navLinks[0].label is string && data.navLinks[0].to is string))))
@@ -155,12 +157,13 @@ service cloud.firestore {
           'status', 'technicianNotes', 'repairEstimate', 'followUpDate', 'createdAt', 'updatedAt'
         ])
         && data.keys().hasOnly([
-          'enquiryCode', 'customerName', 'mobile', 'whatsapp', 'email',
+          'userId', 'enquiryCode', 'customerName', 'mobile', 'whatsapp', 'email',
           'macbookModel', 'macbookYear', 'processorType', 'serviceName',
           'problemDescription', 'preferredContactMethod', 'preferredVisitDate',
           'additionalNotes', 'imageUrls', 'status', 'technicianNotes',
           'repairEstimate', 'followUpDate', 'createdAt', 'updatedAt'
         ])
+        && (!('userId' in data) || (data.userId is string && data.userId.size() <= 128))
         && data.enquiryCode is string && data.enquiryCode.size() >= 4 && data.enquiryCode.size() <= 32 && data.enquiryCode.matches('^RP-[A-Z0-9\\-]+$')
         && data.customerName is string && data.customerName.size() >= 2 && data.customerName.size() <= 120
         && data.mobile is string && data.mobile.size() >= 7 && data.mobile.size() <= 25
@@ -204,13 +207,16 @@ service cloud.firestore {
 
     function isValidContactMessage(data) {
       return data.keys().hasAll(['name', 'phone', 'subject', 'message', 'isRead', 'createdAt'])
-        && data.keys().hasOnly(['name', 'phone', 'email', 'subject', 'message', 'isRead', 'createdAt'])
+        && data.keys().hasOnly(['userId', 'name', 'phone', 'email', 'subject', 'message', 'isRead', 'adminReply', 'repliedAt', 'createdAt'])
+        && (!('userId' in data) || (data.userId is string && data.userId.size() <= 128))
         && data.name is string && data.name.size() >= 2 && data.name.size() <= 120
         && data.phone is string && data.phone.size() >= 7 && data.phone.size() <= 25
         && (!('email' in data) || (data.email is string && data.email.size() <= 160))
         && data.subject is string && data.subject.size() >= 2 && data.subject.size() <= 160
         && data.message is string && data.message.size() >= 5 && data.message.size() <= 2000
         && data.isRead is bool
+        && (!('adminReply' in data) || (data.adminReply is string && data.adminReply.size() <= 2000))
+        && (!('repliedAt' in data) || (data.repliedAt is string && data.repliedAt.size() <= 60))
         && data.createdAt is timestamp;
     }
 
@@ -313,8 +319,8 @@ service cloud.firestore {
         && incoming().updatedAt == request.time
         && incoming().diff(existing()).affectedKeys().hasOnly([
           'businessName', 'tagline', 'phone', 'whatsapp', 'email', 'websiteUrl',
-          'address', 'businessHours', 'googleRating', 'googleReviewCount', 'googleReviewsUrl',
-          'logoUrl', 'heroHeadline', 'heroSubheadline', 'heroImageUrl',
+          'address', 'businessHours', 'googleRating', 'googleReviewCount', 'googlePlaceId', 'googleReviewsUrl',
+          'logoUrl', 'heroHeadline', 'heroSubheadline', 'heroImageUrl', 'heroSlides',
           'headerCtaText', 'headerCtaUrl', 'navLinks',
           'footerDescription', 'footerTagline', 'footerLegalText', 'footerQuickLinks', 'footerServiceLinks',
           'socialInstagram', 'socialFacebook',
@@ -362,12 +368,19 @@ service cloud.firestore {
       allow delete: if isValidId(modelId) && isAdmin();
     }
 
-    // Repair Enquiries (Private PII - Admin read/update/delete only; Public create with strict defaults)
+    // Repair Enquiries (Private PII - Admin or signed-in owner read; Admin update/delete; Public create with strict defaults)
     match /repairEnquiries/{enquiryId} {
-      allow get: if isValidId(enquiryId) && isAdmin();
-      allow list: if isAdmin();
+      allow get: if isValidId(enquiryId) && (
+        isAdmin() ||
+        (isSignedIn() && existing().userId == request.auth.uid) ||
+        (isVerifiedUser() && existing().email != '' && existing().email == request.auth.token.email)
+      );
+      allow list: if isAdmin() ||
+        (isSignedIn() && existing().userId == request.auth.uid) ||
+        (isVerifiedUser() && existing().email != '' && existing().email == request.auth.token.email);
       allow create: if isValidId(enquiryId)
         && isValidRepairEnquiry(incoming())
+        && (!('userId' in incoming()) || incoming().userId == '' || (isSignedIn() && incoming().userId == request.auth.uid))
         && incoming().status == 'New'
         && incoming().technicianNotes == ''
         && incoming().repairEstimate == ''
@@ -409,19 +422,28 @@ service cloud.firestore {
       allow delete: if isValidId(trackingId) && isAdmin();
     }
 
-    // Contact Messages (Private PII - Admin read/update/delete only; Public create)
+    // Contact Messages (Private PII - Admin or signed-in owner read; Admin reply/read/delete; Public create)
     match /contactMessages/{messageId} {
-      allow get: if isValidId(messageId) && isAdmin();
-      allow list: if isAdmin();
+      allow get: if isValidId(messageId) && (
+        isAdmin() ||
+        (isSignedIn() && existing().userId == request.auth.uid) ||
+        (isVerifiedUser() && existing().email != '' && existing().email == request.auth.token.email)
+      );
+      allow list: if isAdmin() ||
+        (isSignedIn() && existing().userId == request.auth.uid) ||
+        (isVerifiedUser() && existing().email != '' && existing().email == request.auth.token.email);
       allow create: if isValidId(messageId)
         && isValidContactMessage(incoming())
+        && (!('userId' in incoming()) || incoming().userId == '' || (isSignedIn() && incoming().userId == request.auth.uid))
+        && (!('adminReply' in incoming()) || incoming().adminReply == '')
+        && (!('repliedAt' in incoming()) || incoming().repliedAt == '')
         && incoming().isRead == false
         && incoming().createdAt == request.time;
       allow update: if isValidId(messageId)
         && isAdmin()
         && isValidContactMessage(incoming())
         && incoming().createdAt == existing().createdAt
-        && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
+        && incoming().diff(existing()).affectedKeys().hasOnly(['isRead', 'adminReply', 'repliedAt']);
       allow delete: if isValidId(messageId) && isAdmin();
     }
 
@@ -463,14 +485,17 @@ service cloud.firestore {
       allow delete: if isValidId(postId) && isAdmin();
     }
 
-    // Verified Reviews
+    // Customer & Verified Google Reviews (Anyone can read visible reviews & submit a customer review; Admin moderates)
     match /reviews/{reviewId} {
       allow get: if isValidId(reviewId) && (existing().isVisible == true || isAdmin());
       allow list: if existing().isVisible == true || isAdmin();
       allow create: if isValidId(reviewId)
-        && isAdmin()
         && isValidReview(incoming())
-        && incoming().createdAt == request.time;
+        && incoming().createdAt == request.time
+        && (
+          isAdmin() ||
+          (incoming().isVisible == true && incoming().source == 'Website Customer Review')
+        );
       allow update: if isValidId(reviewId)
         && isAdmin()
         && isValidReview(incoming())

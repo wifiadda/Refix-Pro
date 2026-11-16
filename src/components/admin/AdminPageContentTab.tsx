@@ -445,7 +445,7 @@ export function AdminPageContentTab({
           </div>
           <div>
             <label className="block text-xs font-semibold mb-1">
-              Target Local Ranking Keywords (Gurugram / Sector 14 / Cyber City / MG Road)
+              Target Local Ranking Keywords (SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007)
             </label>
             <textarea
               rows={3}
@@ -455,7 +455,7 @@ export function AdminPageContentTab({
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold mb-1">Gurugram Area Coverage Summary</label>
+            <label className="block text-xs font-semibold mb-1">Studio Location Address Summary</label>
             <input
               type="text"
               value={form.serviceAreasText}

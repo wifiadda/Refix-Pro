@@ -6,6 +6,12 @@ import { useSeoMeta } from '../utils/seo';
 import { buildTelHref, buildWhatsAppUrl } from '../utils/whatsapp';
 import { GoogleMapLocation } from '../components/GoogleMapLocation';
 import { SafeImage } from '../components/SafeImage';
+import {
+  FadeInSection,
+  HeroReveal,
+  StaggerCard,
+  StaggerContainer,
+} from '../components/MotionPrimitives';
 
 export function ContactPage({
   onNotify,
@@ -14,7 +20,7 @@ export function ContactPage({
   onNotify: (type: 'success' | 'error', message: string) => void;
   quotaExceeded?: boolean;
 }) {
-  const { settings, galleryImages, submitContactMessage } = useApp();
+  const { settings, galleryImages, submitContactMessage, user, customerLogin } = useApp();
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -28,9 +34,9 @@ export function ContactPage({
   const contactCopy = settings.pageContent.contact;
 
   useSeoMeta({
-    title: 'Contact Refix Pro | Sector 14 Main Market, Gurugram MacBook Repair',
+    title: 'Contact Refix Pro | SCF-92,SECTOR-14 MAIN MARKET, Gurugram',
     description:
-      'Visit Refix Pro at SCF-92, Sector 14 Main Market, Gurugram, Haryana 122007. Call or WhatsApp +91 96139 32932 for MacBook, iPad, and iPhone repair guidance.',
+      'Visit Refix Pro at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007. Call or WhatsApp +91 96139 32932 for MacBook, iPad, and iPhone repair guidance.',
     keywords: settings.seoKeywords,
     canonicalPath: '/contact',
   });
@@ -65,8 +71,8 @@ export function ContactPage({
   return (
     <div className="bg-white min-h-screen">
       {/* Header */}
-      <section className="bg-[#F5F5F7] border-b border-[#E5E5EA] py-12 lg:py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
+      <section className="bg-gradient-to-b from-[#F5F5F7] to-white border-b border-[#E5E5EA] py-12 lg:py-16">
+        <HeroReveal className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 space-y-4">
           <nav aria-label="Breadcrumb" className="text-xs text-[#6E6E73] flex items-center gap-2">
             <Link to="/" className="hover:text-[#1D1D1F]">Home</Link>
             <span>/</span>
@@ -78,25 +84,20 @@ export function ContactPage({
           <p className="text-base text-[#424245] max-w-2xl">
             {contactCopy.subheadline}
           </p>
-          {settings.serviceAreasText && (
-            <p className="text-xs sm:text-sm text-[#6E6E73] max-w-3xl">
-              {settings.serviceAreasText}
-            </p>
-          )}
-        </div>
+        </HeroReveal>
       </section>
 
       {/* Main Grid: Details + Form */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16 grid grid-cols-1 lg:grid-cols-12 gap-10">
-        <div className="lg:col-span-5 space-y-6">
+      <section className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 py-12 lg:py-16 grid grid-cols-1 lg:grid-cols-12 gap-10">
+        <FadeInSection className="lg:col-span-5 space-y-6">
           <div className="p-6 rounded-2xl border border-[#E5E5EA] bg-[#F5F5F7] space-y-5">
             <h2 className="text-xl font-bold text-[#1D1D1F]">{settings.businessName}</h2>
             <div className="space-y-4 text-sm text-[#424245]">
               <div className="flex items-start gap-3">
                 <MapPin className="w-5 h-5 text-[#0066CC] shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-semibold text-[#1D1D1F]">Address</p>
-                  <p>{settings.address}</p>
+                  <p className="font-semibold text-[#1D1D1F]">Exact Studio Address</p>
+                  <p>SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -142,7 +143,7 @@ export function ContactPage({
 
             <div className="flex flex-wrap gap-2.5 pt-2">
               <a
-                href="https://www.google.com/maps/dir/?api=1&destination=SCF-92,+Sector+14+Main+Market,+Gurugram,+Haryana+122007,+India"
+                href="https://www.google.com/maps/dir/?api=1&destination=SCF-92,+SECTOR-14+MAIN+MARKET,+Gurugram,+Haryana+122007"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#1D1D1F] hover:bg-black text-white text-xs font-semibold transition-colors"
@@ -168,15 +169,33 @@ export function ContactPage({
               </a>
             </div>
           </div>
-        </div>
+        </FadeInSection>
 
-        <div className="lg:col-span-7">
+        <FadeInSection delay={0.08} className="lg:col-span-7">
           <form onSubmit={handleSubmit} className="p-6 sm:p-8 rounded-2xl border border-[#E5E5EA] bg-white space-y-5">
-            <h2 className="text-2xl font-bold text-[#1D1D1F]">{contactCopy.formHeading}</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-2xl font-bold text-[#1D1D1F]">{contactCopy.formHeading}</h2>
+              {user ? (
+                <Link to="/dashboard" className="text-xs font-semibold text-[#0066CC] hover:underline">
+                  View Admin Replies in Dashboard →
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => customerLogin().catch(() => {})}
+                  className="text-xs font-semibold text-[#0066CC] hover:underline"
+                >
+                  Customer Login to Track Replies →
+                </button>
+              )}
+            </div>
 
             {sent && (
               <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs sm:text-sm text-emerald-900">
-                Thank you! Your message is saved and our Sector 14 team will reply shortly.
+                Thank you! Your message is saved and any reply from our Admin team will appear in your{' '}
+                <Link to="/dashboard" className="font-semibold underline">
+                  Customer Dashboard
+                </Link>.
               </div>
             )}
 
@@ -271,22 +290,25 @@ export function ContactPage({
               {submitting ? 'Sending...' : 'Send Message'}
             </button>
           </form>
-        </div>
+        </FadeInSection>
       </section>
 
       {/* Google Map */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+      <FadeInSection className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 pb-16">
         <h2 className="text-2xl font-bold text-[#1D1D1F] mb-5">{contactCopy.mapHeading}</h2>
         <GoogleMapLocation heightClass="h-[420px]" quotaExceeded={quotaExceeded} />
-      </section>
+      </FadeInSection>
 
       {/* Repair Shop Gallery */}
       <section className="bg-[#F5F5F7] border-t border-[#E5E5EA] py-14">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20">
           <h2 className="text-2xl font-bold text-[#1D1D1F] mb-6">Repair Studio & Bench Gallery</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {galleryImages.slice(0, 3).map((g) => (
-              <div key={g.id} className="rounded-2xl overflow-hidden bg-white border border-[#E5E5EA]">
+              <StaggerCard
+                key={g.id}
+                className="rounded-2xl overflow-hidden bg-white border border-[#E5E5EA]"
+              >
                 <div className="aspect-[4/3] bg-[#E5E5EA]">
                   <SafeImage src={g.imageUrl} alt={g.title} className="w-full h-full object-cover" />
                 </div>
@@ -294,9 +316,9 @@ export function ContactPage({
                   <h3 className="text-sm font-bold text-[#1D1D1F]">{g.title}</h3>
                   {g.caption && <p className="text-xs text-[#6E6E73] mt-1">{g.caption}</p>}
                 </div>
-              </div>
+              </StaggerCard>
             ))}
-          </div>
+          </StaggerContainer>
         </div>
       </section>
     </div>

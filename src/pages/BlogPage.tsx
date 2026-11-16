@@ -4,6 +4,11 @@ import { ArrowRight, Search } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useSeoMeta } from '../utils/seo';
 import { SafeImage } from '../components/SafeImage';
+import {
+  HeroReveal,
+  StaggerCard,
+  StaggerContainer,
+} from '../components/MotionPrimitives';
 
 const PAGE_SIZE = 6;
 
@@ -53,8 +58,8 @@ export function BlogPage() {
   return (
     <div className="bg-white min-h-screen">
       {/* Header */}
-      <section className="bg-[#F5F5F7] border-b border-[#E5E5EA] py-12 lg:py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
+      <section className="bg-gradient-to-b from-[#F5F5F7] to-white border-b border-[#E5E5EA] py-12 lg:py-16">
+        <HeroReveal className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 space-y-4">
           <nav aria-label="Breadcrumb" className="text-xs text-[#6E6E73] flex items-center gap-2">
             <Link to="/" className="hover:text-[#1D1D1F]">Home</Link>
             <span>/</span>
@@ -66,49 +71,50 @@ export function BlogPage() {
           <p className="text-base text-[#424245] max-w-2xl">
             {blogCopy.subheadline}
           </p>
-        </div>
+        </HeroReveal>
       </section>
 
       {/* Featured Articles */}
       {featuredPosts.length > 0 && !searchQuery && selectedCategory === 'All' && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-6">
+        <section className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 pt-12 pb-6">
           <h2 className="text-xl font-bold text-[#1D1D1F] mb-6">Featured Articles</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <StaggerContainer className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {featuredPosts.map((post) => (
-              <Link
-                key={post.id}
-                to={`/blog/${post.slug}`}
-                className="group rounded-2xl overflow-hidden border border-[#E5E5EA] bg-[#F5F5F7] hover:border-[#0066CC]/50 transition-colors grid grid-cols-1 sm:grid-cols-12 items-stretch"
-              >
-                <div className="sm:col-span-5 aspect-[4/3] sm:aspect-auto bg-[#E5E5EA]">
-                  <SafeImage
-                    src={post.featuredImage}
-                    alt={post.title}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="sm:col-span-7 p-6 flex flex-col justify-between bg-white">
-                  <div>
-                    <p className="text-xs text-[#6E6E73]">
-                      {post.category} · {post.publishedAt}
-                    </p>
-                    <h3 className="text-lg font-bold text-[#1D1D1F] mt-2 group-hover:text-[#0066CC] transition-colors">
-                      {post.title}
-                    </h3>
-                    <p className="text-sm text-[#424245] mt-2 line-clamp-2">{post.excerpt}</p>
+              <StaggerCard key={post.id}>
+                <Link
+                  to={`/blog/${post.slug}`}
+                  className="h-full group rounded-2xl overflow-hidden border border-[#E5E5EA] bg-[#F5F5F7] hover:border-[#0066CC]/50 transition-colors grid grid-cols-1 sm:grid-cols-12 items-stretch"
+                >
+                  <div className="sm:col-span-5 aspect-[4/3] sm:aspect-auto bg-[#E5E5EA]">
+                    <SafeImage
+                      src={post.featuredImage}
+                      alt={post.title}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
-                  <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-[#0066CC]">
-                    Read Full Guide <ArrowRight className="w-3.5 h-3.5" />
-                  </span>
-                </div>
-              </Link>
+                  <div className="sm:col-span-7 p-6 flex flex-col justify-between bg-white">
+                    <div>
+                      <p className="text-xs text-[#6E6E73]">
+                        {post.category} · {post.publishedAt}
+                      </p>
+                      <h3 className="text-lg font-bold text-[#1D1D1F] mt-2 group-hover:text-[#0066CC] transition-colors">
+                        {post.title}
+                      </h3>
+                      <p className="text-sm text-[#424245] mt-2 line-clamp-2">{post.excerpt}</p>
+                    </div>
+                    <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-[#0066CC]">
+                      Read Full Guide <ArrowRight className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                </Link>
+              </StaggerCard>
             ))}
-          </div>
+          </StaggerContainer>
         </section>
       )}
 
       {/* Main Listing + Sidebar */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 grid grid-cols-1 lg:grid-cols-12 gap-10">
+      <section className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 py-12 grid grid-cols-1 lg:grid-cols-12 gap-10">
         <div className="lg:col-span-8 space-y-8">
           {/* Category Filter + Search */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E5E5EA]">
@@ -163,44 +169,43 @@ export function BlogPage() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {paginatedPosts.map((post) => (
-                <article
-                  key={post.id}
-                  className="rounded-2xl overflow-hidden border border-[#E5E5EA] bg-white flex flex-col justify-between"
-                >
-                  <div>
-                    <Link to={`/blog/${post.slug}`} className="block aspect-[4/3] bg-[#F5F5F7] overflow-hidden">
-                      <SafeImage
-                        src={post.featuredImage}
-                        alt={post.title}
-                        className="w-full h-full object-cover hover:scale-[1.02] transition-transform duration-200"
-                      />
-                    </Link>
-                    <div className="p-5 space-y-2.5">
-                      <p className="text-xs text-[#6E6E73]">
-                        {post.category} · {post.publishedAt}
-                      </p>
-                      <h3 className="text-lg font-bold text-[#1D1D1F] leading-snug">
-                        <Link to={`/blog/${post.slug}`} className="hover:text-[#0066CC] transition-colors">
-                          {post.title}
-                        </Link>
-                      </h3>
-                      <p className="text-sm text-[#424245] line-clamp-3">{post.excerpt}</p>
+                <StaggerCard key={post.id}>
+                  <article className="h-full rounded-2xl overflow-hidden border border-[#E5E5EA] hover:border-[#0066CC]/45 hover:shadow-[0_12px_30px_-18px_rgba(0,102,204,0.16)] transition-all bg-white flex flex-col justify-between">
+                    <div>
+                      <Link to={`/blog/${post.slug}`} className="block aspect-[4/3] bg-[#F5F5F7] overflow-hidden">
+                        <SafeImage
+                          src={post.featuredImage}
+                          alt={post.title}
+                          className="w-full h-full object-cover hover:scale-[1.02] transition-transform duration-200"
+                        />
+                      </Link>
+                      <div className="p-5 space-y-2.5">
+                        <p className="text-xs text-[#6E6E73]">
+                          {post.category} · {post.publishedAt}
+                        </p>
+                        <h3 className="text-lg font-bold text-[#1D1D1F] leading-snug">
+                          <Link to={`/blog/${post.slug}`} className="hover:text-[#0066CC] transition-colors">
+                            {post.title}
+                          </Link>
+                        </h3>
+                        <p className="text-sm text-[#424245] line-clamp-3">{post.excerpt}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="px-5 pb-5 pt-2 flex items-center justify-between text-xs">
-                    <span className="text-[#6E6E73]">By {post.authorName}</span>
-                    <Link
-                      to={`/blog/${post.slug}`}
-                      className="font-semibold text-[#0066CC] inline-flex items-center gap-1 hover:underline"
-                    >
-                      Read <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
-                  </div>
-                </article>
+                    <div className="px-5 pb-5 pt-2 flex items-center justify-between text-xs">
+                      <span className="text-[#6E6E73]">By {post.authorName}</span>
+                      <Link
+                        to={`/blog/${post.slug}`}
+                        className="font-semibold text-[#0066CC] inline-flex items-center gap-1 hover:underline"
+                      >
+                        Read <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  </article>
+                </StaggerCard>
               ))}
-            </div>
+            </StaggerContainer>
           )}
 
           {/* Pagination */}
