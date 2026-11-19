@@ -7,6 +7,7 @@ import { useSeoMeta } from '../utils/seo';
 import { buildServiceWhatsAppMessage, buildWhatsAppUrl } from '../utils/whatsapp';
 import { SafeImage } from '../components/SafeImage';
 import { PriceEstimatorTool } from '../components/PriceEstimatorTool';
+import { Button, EmptyState } from '../components/ui/DesignSystem';
 import {
   FadeInSection,
   HeroReveal,
@@ -93,7 +94,7 @@ export function ServicesPage() {
                 key={cat}
                 type="button"
                 onClick={() => handleCategoryChange(cat)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                className={`min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
                   activeCategory === cat
                     ? 'bg-[#1D1D1F] text-white'
                     : 'bg-[#F5F5F7] text-[#424245] hover:text-[#1D1D1F]'
@@ -112,7 +113,7 @@ export function ServicesPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search symptoms or repairs..."
               aria-label="Search MacBook repair services"
-              className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-[#D2D2D7] bg-white focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+              className="w-full min-h-[42px] pl-9 pr-3 py-2 text-sm rounded-lg border border-[#D2D2D7] bg-white focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
             />
           </div>
         </div>
@@ -141,20 +142,23 @@ export function ServicesPage() {
       {/* Services Grid */}
       <section className="w-full px-4 sm:px-6 lg:px-10 xl:px-14 2xl:px-20 py-10 lg:py-14">
         {filteredServices.length === 0 ? (
-          <div className="py-16 text-center border border-[#E5E5EA] rounded-2xl bg-[#F5F5F7]">
-            <p className="text-base font-semibold text-[#1D1D1F]">No matching MacBook services found.</p>
-            <p className="text-sm text-[#6E6E73] mt-1">Try clearing your search or select another repair category.</p>
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery('');
-                handleCategoryChange('All');
-              }}
-              className="mt-4 px-4 py-2 rounded-lg bg-[#0066CC] text-white text-xs font-semibold"
-            >
-              Show All Services
-            </button>
-          </div>
+          <EmptyState
+            title="No matching MacBook services found"
+            description="Try clearing your search or select another repair category."
+            action={
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={() => {
+                  setSearchQuery('');
+                  handleCategoryChange('All');
+                }}
+              >
+                Show All Services
+              </Button>
+            }
+          />
         ) : (
           <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
             {filteredServices.map((srv) => {

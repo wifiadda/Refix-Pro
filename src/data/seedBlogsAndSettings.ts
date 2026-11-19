@@ -79,17 +79,11 @@ export const DEFAULT_WEBSITE_SETTINGS: Omit<WebsiteSettings, 'updatedAt'> = {
   footerLegalText:
     'Refix Pro is an independent Apple device repair studio at SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007 and is not affiliated with or an Apple Authorized Service Provider.',
   footerQuickLinks: [
-    { label: 'Home', to: '/' },
-    { label: 'About Us', to: '/about' },
     { label: 'MacBook Services', to: '/services' },
-    { label: 'Supported Apple Models', to: '/models' },
-    { label: 'Customer Reviews', to: '/reviews' },
-    { label: 'FAQs & Help Center', to: '/faq' },
-    { label: 'Track My Repair', to: '/track' },
+    { label: 'Apple Models', to: '/models' },
+    { label: 'Track Repair', to: '/track' },
     { label: 'Pay Online', to: '/pay' },
-    { label: 'Customer Dashboard', to: '/dashboard' },
-    { label: 'Blog', to: '/blog' },
-    { label: 'Contact Us', to: '/contact' },
+    { label: 'Customer Portal', to: '/dashboard' },
     { label: 'Book a Repair', to: '/book' },
   ],
   footerServiceLinks: [

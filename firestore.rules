@@ -12,7 +12,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // Global Helpers
+    // Global Helpers (Four-Role RBAC + Hardened Identity Checks)
     // =========================================================================
     function isValidId(id) {
       return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
@@ -34,14 +34,55 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email_verified == true;
     }
 
+    function isOwnerEmail() {
+      return isVerifiedUser() &&
+        'email' in request.auth.token &&
+        request.auth.token.email is string &&
+        request.auth.token.email.lower() == 'refixpro.in@gmail.com';
+    }
+
+    function isActiveStaffDoc(data) {
+      return !('isActive' in data) || data.isActive == true;
+    }
+
+    function isSuperAdmin() {
+      return isVerifiedUser() && (
+        isOwnerEmail() ||
+        (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'super_admin' &&
+          isActiveStaffDoc(get(/databases/$(database)/documents/admins/$(request.auth.uid)).data))
+      );
+    }
+
     function isAdmin() {
       return isVerifiedUser() && (
-        ('email' in request.auth.token && request.auth.token.email is string && (
-          request.auth.token.email.lower() == 'refixpro.in@gmail.com' ||
-          request.auth.token.email.lower() == 'wifiadda76@gmail.com'
-        )) ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        isOwnerEmail() ||
+        (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role in ['super_admin', 'admin'] &&
+          isActiveStaffDoc(get(/databases/$(database)/documents/admins/$(request.auth.uid)).data))
       );
+    }
+
+    function isFrontDeskStaff() {
+      return isVerifiedUser() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'staff' &&
+        isActiveStaffDoc(get(/databases/$(database)/documents/admins/$(request.auth.uid)).data);
+    }
+
+    function isOperationsTeam() {
+      return isAdmin() || isFrontDeskStaff();
+    }
+
+    function isTechnician() {
+      return isVerifiedUser() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'technician' &&
+        isActiveStaffDoc(get(/databases/$(database)/documents/admins/$(request.auth.uid)).data);
+    }
+
+    function isStaff() {
+      return isAdmin() || isFrontDeskStaff() || isTechnician();
     }
 
     // =========================================================================
@@ -49,12 +90,31 @@ service cloud.firestore {
     // =========================================================================
     function isValidAdminUser(data) {
       return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'createdAt'])
-        && data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'isActive', 'permissions', 'createdAt'])
         && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128
         && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
-        && data.role in ['super_admin', 'admin']
+        && data.role in ['super_admin', 'admin', 'staff', 'technician']
+        && (!('isActive' in data) || data.isActive is bool)
+        && (!('permissions' in data) || data.permissions is map)
         && data.createdAt is timestamp;
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'createdAt', 'lastLoginAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'phone', 'whatsapp', 'address', 'role', 'isActive', 'permissions', 'createdAt', 'lastLoginAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 1000))
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 30))
+        && (!('whatsapp' in data) || (data.whatsapp is string && data.whatsapp.size() <= 30))
+        && (!('address' in data) || (data.address is string && data.address.size() <= 300))
+        && data.role in ['user', 'staff', 'technician', 'admin', 'super_admin']
+        && (!('isActive' in data) || data.isActive is bool)
+        && (!('permissions' in data) || data.permissions is map)
+        && data.createdAt is timestamp
+        && data.lastLoginAt is timestamp;
     }
 
     function isValidWebsiteSettings(data) {
@@ -72,7 +132,7 @@ service cloud.firestore {
           'razorpayEnabled', 'razorpayKeyId', 'razorpayPaymentLinkUrl',
           'manualPaymentEnabled', 'manualUpiId', 'manualUpiQrUrl', 'manualBankDetails', 'manualPaymentNote',
           'seoTitle', 'seoDescription', 'seoKeywords', 'serviceAreasText',
-          'homeFaqs', 'pageContent', 'updatedAt'
+          'homeFaqs', 'pageContent', 'erpConfig', 'updatedAt'
         ])
         && data.businessName is string && data.businessName.size() >= 1 && data.businessName.size() <= 120
         && (!('tagline' in data) || (data.tagline is string && data.tagline.size() <= 200))
@@ -94,9 +154,9 @@ service cloud.firestore {
         && (!('headerCtaText' in data) || (data.headerCtaText is string && data.headerCtaText.size() <= 60))
         && (!('headerCtaUrl' in data) || (data.headerCtaUrl is string && data.headerCtaUrl.size() <= 160))
         && (!('navLinks' in data) || (data.navLinks is list && data.navLinks.size() <= 10 && (data.navLinks.size() == 0 || (data.navLinks[0] is map && data.navLinks[0].label is string && data.navLinks[0].to is string))))
-        && (!('footerDescription' in data) || (data.footerDescription is string && data.footerDescription.size() <= 500))
+        && (!('footerDescription' in data) || (data.footerDescription is string && data.footerDescription.size() <= 800))
         && (!('footerTagline' in data) || (data.footerTagline is string && data.footerTagline.size() <= 200))
-        && (!('footerLegalText' in data) || (data.footerLegalText is string && data.footerLegalText.size() <= 400))
+        && (!('footerLegalText' in data) || (data.footerLegalText is string && data.footerLegalText.size() <= 600))
         && (!('footerQuickLinks' in data) || (data.footerQuickLinks is list && data.footerQuickLinks.size() <= 12 && (data.footerQuickLinks.size() == 0 || (data.footerQuickLinks[0] is map && data.footerQuickLinks[0].label is string && data.footerQuickLinks[0].to is string))))
         && (!('footerServiceLinks' in data) || (data.footerServiceLinks is list && data.footerServiceLinks.size() <= 12 && (data.footerServiceLinks.size() == 0 || (data.footerServiceLinks[0] is map && data.footerServiceLinks[0].label is string && data.footerServiceLinks[0].to is string))))
         && (!('socialInstagram' in data) || (data.socialInstagram is string && data.socialInstagram.size() <= 300))
@@ -111,13 +171,14 @@ service cloud.firestore {
         && (!('manualUpiId' in data) || (data.manualUpiId is string && data.manualUpiId.size() <= 160))
         && (!('manualUpiQrUrl' in data) || (data.manualUpiQrUrl is string && data.manualUpiQrUrl.size() <= 300000))
         && (!('manualBankDetails' in data) || (data.manualBankDetails is string && data.manualBankDetails.size() <= 600))
-        && (!('manualPaymentNote' in data) || (data.manualPaymentNote is string && data.manualPaymentNote.size() <= 500))
-        && (!('seoTitle' in data) || (data.seoTitle is string && data.seoTitle.size() <= 120))
-        && (!('seoDescription' in data) || (data.seoDescription is string && data.seoDescription.size() <= 300))
-        && (!('seoKeywords' in data) || (data.seoKeywords is string && data.seoKeywords.size() <= 600))
+        && (!('manualPaymentNote' in data) || (data.manualPaymentNote is string && data.manualPaymentNote.size() <= 800))
+        && (!('seoTitle' in data) || (data.seoTitle is string && data.seoTitle.size() <= 200))
+        && (!('seoDescription' in data) || (data.seoDescription is string && data.seoDescription.size() <= 500))
+        && (!('seoKeywords' in data) || (data.seoKeywords is string && data.seoKeywords.size() <= 1200))
         && (!('serviceAreasText' in data) || (data.serviceAreasText is string && data.serviceAreasText.size() <= 400))
         && (!('homeFaqs' in data) || (data.homeFaqs is list && data.homeFaqs.size() <= 15 && (data.homeFaqs.size() == 0 || (data.homeFaqs[0] is map && data.homeFaqs[0].q is string && data.homeFaqs[0].a is string))))
         && (!('pageContent' in data) || (data.pageContent is map && data.pageContent.keys().hasOnly(['home', 'services', 'models', 'book', 'track', 'about', 'blog', 'contact'])))
+        && (!('erpConfig' in data) || data.erpConfig is map)
         && data.updatedAt is timestamp;
     }
 
@@ -200,7 +261,7 @@ service cloud.firestore {
         && data.repairEstimate is string && data.repairEstimate.size() <= 120
         && data.followUpDate is string && data.followUpDate.size() <= 40
         && (!('payableAmount' in data) || (data.payableAmount is number && data.payableAmount >= 0 && data.payableAmount <= 500000))
-        && (!('paymentStatus' in data) || (data.paymentStatus in ['Unpaid', 'Pending Verification', 'Paid']))
+        && (!('paymentStatus' in data) || (data.paymentStatus in ['Unpaid', 'Pending Verification', 'Paid', 'Partial', 'Refunded']))
         && (!('paymentMethod' in data) || (data.paymentMethod is string && data.paymentMethod.size() <= 60))
         && (!('paymentReference' in data) || (data.paymentReference is string && data.paymentReference.size() <= 140))
         && (!('paidAt' in data) || (data.paidAt is string && data.paidAt.size() <= 60))
@@ -227,10 +288,177 @@ service cloud.firestore {
         && data.followUpDate is string && data.followUpDate.size() <= 40
         && data.publicUpdateNote is string && data.publicUpdateNote.size() <= 500
         && (!('payableAmount' in data) || (data.payableAmount is number && data.payableAmount >= 0 && data.payableAmount <= 500000))
-        && (!('paymentStatus' in data) || (data.paymentStatus in ['Unpaid', 'Pending Verification', 'Paid']))
+        && (!('paymentStatus' in data) || (data.paymentStatus in ['Unpaid', 'Pending Verification', 'Paid', 'Partial', 'Refunded']))
         && (!('paymentMethod' in data) || (data.paymentMethod is string && data.paymentMethod.size() <= 60))
         && (!('paymentReference' in data) || (data.paymentReference is string && data.paymentReference.size() <= 140))
         && (!('paidAt' in data) || (data.paidAt is string && data.paidAt.size() <= 60))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRepairJob(data) {
+      return data.keys().hasAll([
+          'jobCardCode', 'customerName', 'customerMobile', 'deviceType', 'macbookModel',
+          'estimatedCost', 'approvalStatus', 'status', 'paymentStatus', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'jobCardCode', 'enquiryId', 'enquiryCode', 'customerId', 'customerUid',
+          'customerName', 'customerMobile', 'customerEmail', 'deviceType', 'macbookModel',
+          'modelNumber', 'serialNumber', 'deviceCondition', 'accessoriesReceived',
+          'reportedProblem', 'inspectionDetails', 'diagnosis', 'estimatedCost', 'finalCost',
+          'technicianUid', 'technicianName', 'partsUsed', 'approvalStatus', 'status',
+          'deliveryDate', 'warrantyPeriod', 'warrantyExpiry', 'qualityChecklist', 'beforeImages', 'afterImages',
+          'internalNotes', 'customerUpdates', 'paymentStatus', 'createdAt', 'updatedAt'
+        ])
+        && data.jobCardCode is string && data.jobCardCode.size() >= 4 && data.jobCardCode.size() <= 40
+        && (!('enquiryId' in data) || (data.enquiryId is string && data.enquiryId.size() <= 128))
+        && (!('enquiryCode' in data) || (data.enquiryCode is string && data.enquiryCode.size() <= 40))
+        && (!('customerId' in data) || (data.customerId is string && data.customerId.size() <= 128))
+        && (!('customerUid' in data) || (data.customerUid is string && data.customerUid.size() <= 128))
+        && data.customerName is string && data.customerName.size() >= 2 && data.customerName.size() <= 120
+        && data.customerMobile is string && data.customerMobile.size() >= 7 && data.customerMobile.size() <= 25
+        && (!('customerEmail' in data) || (data.customerEmail is string && data.customerEmail.size() <= 160))
+        && data.deviceType in ['MacBook', 'iPad', 'iPhone', 'Other Apple']
+        && data.macbookModel is string && data.macbookModel.size() >= 2 && data.macbookModel.size() <= 140
+        && (!('modelNumber' in data) || (data.modelNumber is string && data.modelNumber.size() <= 60))
+        && (!('serialNumber' in data) || (data.serialNumber is string && data.serialNumber.size() <= 80))
+        && (!('deviceCondition' in data) || (data.deviceCondition is string && data.deviceCondition.size() <= 400))
+        && (!('accessoriesReceived' in data) || (data.accessoriesReceived is string && data.accessoriesReceived.size() <= 300))
+        && (!('reportedProblem' in data) || (data.reportedProblem is string && data.reportedProblem.size() <= 2000))
+        && (!('inspectionDetails' in data) || (data.inspectionDetails is string && data.inspectionDetails.size() <= 2000))
+        && (!('diagnosis' in data) || (data.diagnosis is string && data.diagnosis.size() <= 2000))
+        && data.estimatedCost is number && data.estimatedCost >= 0 && data.estimatedCost <= 1000000
+        && (!('finalCost' in data) || (data.finalCost is number && data.finalCost >= 0 && data.finalCost <= 1000000))
+        && (!('technicianUid' in data) || (data.technicianUid is string && data.technicianUid.size() <= 128))
+        && (!('technicianName' in data) || (data.technicianName is string && data.technicianName.size() <= 120))
+        && (!('partsUsed' in data) || (data.partsUsed is list && data.partsUsed.size() <= 25 && (data.partsUsed.size() == 0 || data.partsUsed[0] is map)))
+        && data.approvalStatus in ['Not Sent', 'Pending', 'Approved', 'Rejected']
+        && data.status is string && data.status.size() >= 2 && data.status.size() <= 60
+        && (!('deliveryDate' in data) || (data.deliveryDate is string && data.deliveryDate.size() <= 40))
+        && (!('warrantyPeriod' in data) || (data.warrantyPeriod is string && data.warrantyPeriod.size() <= 120))
+        && (!('warrantyExpiry' in data) || (data.warrantyExpiry is string && data.warrantyExpiry.size() <= 40))
+        && (!('qualityChecklist' in data) || data.qualityChecklist is map)
+        && (!('beforeImages' in data) || (data.beforeImages is list && data.beforeImages.size() <= 6 && (data.beforeImages.size() == 0 || (data.beforeImages[0] is string && data.beforeImages[0].size() <= 250000))))
+        && (!('afterImages' in data) || (data.afterImages is list && data.afterImages.size() <= 6 && (data.afterImages.size() == 0 || (data.afterImages[0] is string && data.afterImages[0].size() <= 250000))))
+        && (!('internalNotes' in data) || (data.internalNotes is string && data.internalNotes.size() <= 2000))
+        && (!('customerUpdates' in data) || (data.customerUpdates is string && data.customerUpdates.size() <= 2000))
+        && data.paymentStatus in ['Unpaid', 'Pending Verification', 'Paid', 'Partial', 'Refunded']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCustomerRecord(data) {
+      return data.keys().hasAll(['customerCode', 'name', 'mobile', 'totalBusinessValue', 'repairCount', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['customerCode', 'uid', 'name', 'mobile', 'whatsapp', 'email', 'address', 'deviceHistory', 'notes', 'followUpDate', 'totalBusinessValue', 'repairCount', 'createdAt', 'updatedAt'])
+        && data.customerCode is string && data.customerCode.size() >= 4 && data.customerCode.size() <= 40
+        && (!('uid' in data) || (data.uid is string && data.uid.size() <= 128))
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 120
+        && data.mobile is string && data.mobile.size() >= 7 && data.mobile.size() <= 25
+        && (!('whatsapp' in data) || (data.whatsapp is string && data.whatsapp.size() <= 25))
+        && (!('email' in data) || (data.email is string && data.email.size() <= 160))
+        && (!('address' in data) || (data.address is string && data.address.size() <= 300))
+        && (!('deviceHistory' in data) || (data.deviceHistory is list && data.deviceHistory.size() <= 30 && (data.deviceHistory.size() == 0 || (data.deviceHistory[0] is string && data.deviceHistory[0].size() <= 160))))
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000))
+        && (!('followUpDate' in data) || (data.followUpDate is string && data.followUpDate.size() <= 40))
+        && data.totalBusinessValue is number && data.totalBusinessValue >= 0
+        && data.repairCount is number && data.repairCount >= 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTechnicianProfile(data) {
+      return data.keys().hasAll(['name', 'email', 'specialization', 'availability', 'isActive', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'specialization', 'availability', 'notes', 'isActive', 'createdAt', 'updatedAt'])
+        && (!('uid' in data) || (data.uid is string && data.uid.size() <= 128))
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 120
+        && data.email is string && data.email.size() <= 160
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 30))
+        && data.specialization is string && data.specialization.size() <= 200
+        && data.availability in ['Available', 'Busy', 'On Leave', 'Inactive']
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
+        && data.isActive is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAppointment(data) {
+      return data.keys().hasAll(['appointmentCode', 'customerName', 'customerPhone', 'macbookModel', 'serviceType', 'scheduledDate', 'status', 'reminderSent', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['appointmentCode', 'customerName', 'customerPhone', 'customerEmail', 'customerUid', 'macbookModel', 'serviceType', 'scheduledDate', 'scheduledSlot', 'technicianUid', 'technicianName', 'status', 'notes', 'reminderSent', 'createdAt', 'updatedAt'])
+        && data.appointmentCode is string && data.appointmentCode.size() >= 4 && data.appointmentCode.size() <= 40
+        && data.customerName is string && data.customerName.size() >= 2 && data.customerName.size() <= 120
+        && data.customerPhone is string && data.customerPhone.size() >= 7 && data.customerPhone.size() <= 25
+        && (!('customerEmail' in data) || (data.customerEmail is string && data.customerEmail.size() <= 160))
+        && (!('customerUid' in data) || (data.customerUid is string && data.customerUid.size() <= 128))
+        && data.macbookModel is string && data.macbookModel.size() >= 2 && data.macbookModel.size() <= 140
+        && data.serviceType is string && data.serviceType.size() >= 2 && data.serviceType.size() <= 160
+        && data.scheduledDate is string && data.scheduledDate.size() >= 4 && data.scheduledDate.size() <= 40
+        && (!('scheduledSlot' in data) || (data.scheduledSlot is string && data.scheduledSlot.size() <= 60))
+        && (!('technicianUid' in data) || (data.technicianUid is string && data.technicianUid.size() <= 128))
+        && (!('technicianName' in data) || (data.technicianName is string && data.technicianName.size() <= 120))
+        && data.status in ['Scheduled', 'Confirmed', 'Rescheduled', 'Completed', 'Cancelled']
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
+        && data.reminderSent is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidInventoryItem(data) {
+      return data.keys().hasAll(['partCode', 'name', 'sku', 'purchasePrice', 'sellingPrice', 'quantity', 'minStock', 'updatedAt'])
+        && data.keys().hasOnly(['partCode', 'name', 'compatibleModels', 'sku', 'supplierName', 'purchasePrice', 'sellingPrice', 'quantity', 'minStock', 'location', 'purchaseDate', 'updatedAt'])
+        && data.partCode is string && data.partCode.size() >= 2 && data.partCode.size() <= 40
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 160
+        && (!('compatibleModels' in data) || (data.compatibleModels is string && data.compatibleModels.size() <= 300))
+        && data.sku is string && data.sku.size() >= 2 && data.sku.size() <= 60
+        && (!('supplierName' in data) || (data.supplierName is string && data.supplierName.size() <= 140))
+        && data.purchasePrice is number && data.purchasePrice >= 0
+        && data.sellingPrice is number && data.sellingPrice >= 0
+        && data.quantity is number && data.quantity >= 0
+        && data.minStock is number && data.minStock >= 0
+        && (!('location' in data) || (data.location is string && data.location.size() <= 100))
+        && (!('purchaseDate' in data) || (data.purchaseDate is string && data.purchaseDate.size() <= 40))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStockMovement(data) {
+      return data.keys().hasAll(['partId', 'partName', 'sku', 'type', 'quantityDelta', 'previousQty', 'nextQty', 'actorUid', 'actorName', 'createdAt'])
+        && data.keys().hasOnly(['partId', 'partName', 'sku', 'type', 'quantityDelta', 'previousQty', 'nextQty', 'jobCardCode', 'actorUid', 'actorName', 'note', 'createdAt'])
+        && data.partId is string && data.partId.size() >= 1 && data.partId.size() <= 128
+        && data.partName is string && data.partName.size() >= 1 && data.partName.size() <= 160
+        && data.sku is string && data.sku.size() >= 1 && data.sku.size() <= 60
+        && data.type in ['IN', 'OUT', 'REPAIR_USE', 'ADJUSTMENT']
+        && data.quantityDelta is number
+        && data.previousQty is number && data.previousQty >= 0
+        && data.nextQty is number && data.nextQty >= 0
+        && (!('jobCardCode' in data) || (data.jobCardCode is string && data.jobCardCode.size() <= 40))
+        && data.actorUid is string && data.actorUid.size() >= 1 && data.actorUid.size() <= 128
+        && data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 120
+        && (!('note' in data) || (data.note is string && data.note.size() <= 400))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidSupplierRecord(data) {
+      return data.keys().hasAll(['name', 'createdAt'])
+        && data.keys().hasOnly(['name', 'contactPerson', 'phone', 'email', 'address', 'gstNumber', 'notes', 'createdAt'])
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 140
+        && (!('contactPerson' in data) || (data.contactPerson is string && data.contactPerson.size() <= 120))
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 30))
+        && (!('email' in data) || (data.email is string && data.email.size() <= 160))
+        && (!('address' in data) || (data.address is string && data.address.size() <= 300))
+        && (!('gstNumber' in data) || (data.gstNumber is string && data.gstNumber.size() <= 40))
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 500))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidPurchaseOrder(data) {
+      return data.keys().hasAll(['poNumber', 'supplierName', 'itemsSummary', 'totalAmount', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['poNumber', 'supplierName', 'itemsSummary', 'totalAmount', 'status', 'expectedDate', 'notes', 'createdAt', 'updatedAt'])
+        && data.poNumber is string && data.poNumber.size() >= 3 && data.poNumber.size() <= 40
+        && data.supplierName is string && data.supplierName.size() >= 2 && data.supplierName.size() <= 140
+        && data.itemsSummary is string && data.itemsSummary.size() >= 2 && data.itemsSummary.size() <= 1000
+        && data.totalAmount is number && data.totalAmount >= 0
+        && data.status in ['Draft', 'Ordered', 'Received', 'Cancelled']
+        && (!('expectedDate' in data) || (data.expectedDate is string && data.expectedDate.size() <= 40))
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 500))
+        && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
 
@@ -239,19 +467,93 @@ service cloud.firestore {
           'enquiryCode', 'customerName', 'mobile', 'amount', 'method', 'transactionRef', 'status', 'createdAt'
         ])
         && data.keys().hasOnly([
-          'userId', 'enquiryCode', 'customerName', 'mobile', 'amount', 'method',
-          'transactionRef', 'notes', 'status', 'createdAt', 'verifiedAt'
+          'userId', 'enquiryCode', 'jobCardCode', 'invoiceNumber', 'customerName', 'mobile', 'amount', 'method',
+          'transactionRef', 'notes', 'refundAmount', 'refundNote', 'status', 'createdAt', 'verifiedAt'
         ])
         && (!('userId' in data) || (data.userId is string && data.userId.size() <= 128))
         && data.enquiryCode is string && data.enquiryCode.size() >= 3 && data.enquiryCode.size() <= 40
+        && (!('jobCardCode' in data) || (data.jobCardCode is string && data.jobCardCode.size() <= 40))
+        && (!('invoiceNumber' in data) || (data.invoiceNumber is string && data.invoiceNumber.size() <= 40))
         && data.customerName is string && data.customerName.size() >= 2 && data.customerName.size() <= 120
         && data.mobile is string && data.mobile.size() >= 7 && data.mobile.size() <= 25
         && data.amount is number && data.amount > 0 && data.amount <= 500000
-        && data.method in ['Razorpay', 'Manual UPI / Bank']
-        && data.transactionRef is string && data.transactionRef.size() >= 4 && data.transactionRef.size() <= 140
+        && data.method in ['Razorpay', 'Manual UPI / Bank', 'UPI', 'Bank Transfer', 'Cash']
+        && data.transactionRef is string && data.transactionRef.size() >= 3 && data.transactionRef.size() <= 140
         && (!('notes' in data) || (data.notes is string && data.notes.size() <= 400))
-        && data.status in ['Pending Verification', 'Verified Paid', 'Rejected']
+        && (!('refundAmount' in data) || (data.refundAmount is number && data.refundAmount >= 0))
+        && (!('refundNote' in data) || (data.refundNote is string && data.refundNote.size() <= 300))
+        && data.status in ['Pending Verification', 'Verified Paid', 'Rejected', 'Refunded']
         && (!('verifiedAt' in data) || (data.verifiedAt is string && data.verifiedAt.size() <= 60))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidInvoice(data) {
+      return data.keys().hasAll(['invoiceNumber', 'customerName', 'customerMobile', 'deviceSummary', 'totalAmount', 'amountPaid', 'outstandingAmount', 'status', 'issuedDate', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['invoiceNumber', 'jobCardCode', 'enquiryCode', 'customerId', 'customerUid', 'customerName', 'customerMobile', 'customerEmail', 'customerAddress', 'deviceSummary', 'repairSummary', 'serviceCharges', 'partsCharges', 'taxRate', 'taxAmount', 'discount', 'totalAmount', 'amountPaid', 'outstandingAmount', 'status', 'warrantyNote', 'issuedDate', 'createdAt', 'updatedAt'])
+        && data.invoiceNumber is string && data.invoiceNumber.size() >= 4 && data.invoiceNumber.size() <= 40
+        && (!('jobCardCode' in data) || (data.jobCardCode is string && data.jobCardCode.size() <= 40))
+        && (!('enquiryCode' in data) || (data.enquiryCode is string && data.enquiryCode.size() <= 40))
+        && (!('customerId' in data) || (data.customerId is string && data.customerId.size() <= 128))
+        && (!('customerUid' in data) || (data.customerUid is string && data.customerUid.size() <= 128))
+        && data.customerName is string && data.customerName.size() >= 2 && data.customerName.size() <= 120
+        && data.customerMobile is string && data.customerMobile.size() >= 7 && data.customerMobile.size() <= 25
+        && (!('customerEmail' in data) || (data.customerEmail is string && data.customerEmail.size() <= 160))
+        && (!('customerAddress' in data) || (data.customerAddress is string && data.customerAddress.size() <= 300))
+        && data.deviceSummary is string && data.deviceSummary.size() >= 2 && data.deviceSummary.size() <= 200
+        && (!('repairSummary' in data) || (data.repairSummary is string && data.repairSummary.size() <= 500))
+        && (!('serviceCharges' in data) || (data.serviceCharges is number && data.serviceCharges >= 0))
+        && (!('partsCharges' in data) || (data.partsCharges is number && data.partsCharges >= 0))
+        && (!('taxRate' in data) || (data.taxRate is number && data.taxRate >= 0 && data.taxRate <= 50))
+        && (!('taxAmount' in data) || (data.taxAmount is number && data.taxAmount >= 0))
+        && (!('discount' in data) || (data.discount is number && data.discount >= 0))
+        && data.totalAmount is number && data.totalAmount >= 0
+        && data.amountPaid is number && data.amountPaid >= 0
+        && data.outstandingAmount is number && data.outstandingAmount >= 0
+        && data.status in ['Unpaid', 'Partial', 'Paid', 'Refunded']
+        && (!('warrantyNote' in data) || (data.warrantyNote is string && data.warrantyNote.size() <= 400))
+        && data.issuedDate is string && data.issuedDate.size() <= 40
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidExpense(data) {
+      return data.keys().hasAll(['category', 'description', 'amount', 'expenseDate', 'paymentMethod', 'createdAt'])
+        && data.keys().hasOnly(['category', 'description', 'amount', 'expenseDate', 'paymentMethod', 'referenceNumber', 'documentNote', 'createdAt'])
+        && data.category in ['Spare Parts', 'Rent & Utilities', 'Tools & Equipment', 'Salaries', 'Marketing', 'Courier & Logistics', 'Other']
+        && data.description is string && data.description.size() >= 2 && data.description.size() <= 300
+        && data.amount is number && data.amount > 0
+        && data.expenseDate is string && data.expenseDate.size() >= 4 && data.expenseDate.size() <= 40
+        && data.paymentMethod in ['UPI', 'Bank Transfer', 'Cash', 'Card']
+        && (!('referenceNumber' in data) || (data.referenceNumber is string && data.referenceNumber.size() <= 120))
+        && (!('documentNote' in data) || (data.documentNote is string && data.documentNote.size() <= 300))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['audience', 'title', 'message', 'category', 'isRead', 'createdAt'])
+        && data.keys().hasOnly(['recipientUid', 'recipientEmail', 'audience', 'title', 'message', 'category', 'relatedCode', 'isRead', 'createdAt'])
+        && (!('recipientUid' in data) || (data.recipientUid is string && data.recipientUid.size() <= 128))
+        && (!('recipientEmail' in data) || (data.recipientEmail is string && data.recipientEmail.size() <= 160))
+        && data.audience in ['customer', 'staff', 'all_admins']
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 160
+        && data.message is string && data.message.size() >= 2 && data.message.size() <= 600
+        && data.category in ['booking', 'repair', 'estimate', 'payment', 'appointment', 'system']
+        && (!('relatedCode' in data) || (data.relatedCode is string && data.relatedCode.size() <= 60))
+        && data.isRead is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidActivityLog(data) {
+      return data.keys().hasAll(['actorUid', 'actorEmail', 'actorRole', 'action', 'targetCollection', 'targetId', 'summary', 'createdAt'])
+        && data.keys().hasOnly(['actorUid', 'actorEmail', 'actorRole', 'action', 'targetCollection', 'targetId', 'summary', 'metadata', 'createdAt'])
+        && data.actorUid is string && data.actorUid.size() >= 1 && data.actorUid.size() <= 128
+        && data.actorEmail is string && data.actorEmail.size() >= 3 && data.actorEmail.size() <= 200
+        && data.actorRole is string && data.actorRole.size() >= 2 && data.actorRole.size() <= 40
+        && data.action is string && data.action.size() >= 2 && data.action.size() <= 120
+        && data.targetCollection is string && data.targetCollection.size() >= 2 && data.targetCollection.size() <= 80
+        && data.targetId is string && data.targetId.size() >= 1 && data.targetId.size() <= 128
+        && data.summary is string && data.summary.size() >= 2 && data.summary.size() <= 400
+        && (!('metadata' in data) || (data.metadata is string && data.metadata.size() <= 1000))
         && data.createdAt is timestamp;
     }
 
@@ -337,22 +639,60 @@ service cloud.firestore {
     // Collection Rules
     // =========================================================================
 
-    // Admins
+    // Staff / Admins (Super Admin can manage everyone; Admin cannot touch Super Admin)
     match /admins/{adminUid} {
       allow get: if isValidId(adminUid) && (isAdmin() || (isVerifiedUser() && request.auth.uid == adminUid));
       allow list: if isAdmin();
       allow create: if isValidId(adminUid)
-        && isAdmin()
         && isValidAdminUser(incoming())
         && incoming().uid == adminUid
-        && incoming().createdAt == request.time;
+        && incoming().createdAt == request.time
+        && (isSuperAdmin() || (isAdmin() && incoming().role != 'super_admin'));
       allow update: if isValidId(adminUid)
-        && isAdmin()
         && isValidAdminUser(incoming())
         && incoming().uid == existing().uid
         && incoming().createdAt == existing().createdAt
-        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'role']);
-      allow delete: if isValidId(adminUid) && isAdmin() && request.auth.uid != adminUid;
+        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'role', 'isActive', 'permissions'])
+        && (isSuperAdmin() || (isAdmin() && existing().role != 'super_admin' && incoming().role != 'super_admin'));
+      allow delete: if isValidId(adminUid)
+        && request.auth.uid != adminUid
+        && existing().email.lower() != 'refixpro.in@gmail.com'
+        && (isSuperAdmin() || (isAdmin() && existing().role != 'super_admin'));
+    }
+
+    // Registered Users (Default 'user' mode; Super Admin/Admin manages roles & permissions without demoting Super Admin)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isAdmin() || (isSignedIn() && request.auth.uid == userId));
+      allow list: if isAdmin();
+      allow create: if isValidId(userId)
+        && isVerifiedUser()
+        && request.auth.uid == userId
+        && isValidUserProfile(incoming())
+        && incoming().uid == userId
+        && incoming().createdAt == request.time
+        && incoming().lastLoginAt == request.time
+        && (incoming().role == 'user' || isSuperAdmin());
+      allow update: if isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && (
+          (isSuperAdmin()
+            && incoming().diff(existing()).addedKeys().hasOnly(['email', 'displayName', 'photoURL', 'phone', 'whatsapp', 'address', 'role', 'isActive', 'permissions', 'lastLoginAt'])
+            && incoming().diff(existing()).changedKeys().hasOnly(['email', 'displayName', 'photoURL', 'phone', 'whatsapp', 'address', 'role', 'isActive', 'permissions', 'lastLoginAt'])) ||
+          (isAdmin()
+            && existing().role != 'super_admin'
+            && incoming().role != 'super_admin'
+            && incoming().diff(existing()).addedKeys().hasOnly(['email', 'displayName', 'photoURL', 'phone', 'whatsapp', 'address', 'role', 'isActive', 'lastLoginAt'])
+            && incoming().diff(existing()).changedKeys().hasOnly(['email', 'displayName', 'photoURL', 'phone', 'whatsapp', 'address', 'role', 'isActive', 'lastLoginAt'])) ||
+          (isVerifiedUser()
+            && request.auth.uid == userId
+            && incoming().role == existing().role
+            && incoming().lastLoginAt == request.time
+            && incoming().diff(existing()).addedKeys().hasOnly(['email', 'displayName', 'photoURL', 'phone', 'whatsapp', 'address', 'lastLoginAt'])
+            && incoming().diff(existing()).changedKeys().hasOnly(['email', 'displayName', 'photoURL', 'phone', 'whatsapp', 'address', 'lastLoginAt']))
+        );
+      allow delete: if false;
     }
 
     // Website Settings
@@ -377,7 +717,7 @@ service cloud.firestore {
           'razorpayEnabled', 'razorpayKeyId', 'razorpayPaymentLinkUrl',
           'manualPaymentEnabled', 'manualUpiId', 'manualUpiQrUrl', 'manualBankDetails', 'manualPaymentNote',
           'seoTitle', 'seoDescription', 'seoKeywords', 'serviceAreasText',
-          'homeFaqs', 'pageContent', 'updatedAt'
+          'homeFaqs', 'pageContent', 'erpConfig', 'updatedAt'
         ])
         && incoming().diff(existing()).changedKeys().hasOnly([
           'businessName', 'tagline', 'phone', 'whatsapp', 'email', 'websiteUrl',
@@ -389,7 +729,7 @@ service cloud.firestore {
           'razorpayEnabled', 'razorpayKeyId', 'razorpayPaymentLinkUrl',
           'manualPaymentEnabled', 'manualUpiId', 'manualUpiQrUrl', 'manualBankDetails', 'manualPaymentNote',
           'seoTitle', 'seoDescription', 'seoKeywords', 'serviceAreasText',
-          'homeFaqs', 'pageContent', 'updatedAt'
+          'homeFaqs', 'pageContent', 'erpConfig', 'updatedAt'
         ]);
       allow delete: if false;
     }
@@ -440,14 +780,14 @@ service cloud.firestore {
       allow delete: if isValidId(modelId) && isAdmin();
     }
 
-    // Repair Enquiries (Private PII - Admin or signed-in owner read; Admin update/delete; Public create with strict defaults)
+    // Repair Enquiries
     match /repairEnquiries/{enquiryId} {
       allow get: if isValidId(enquiryId) && (
-        isAdmin() ||
+        isOperationsTeam() ||
         (isSignedIn() && existing().userId == request.auth.uid) ||
         (isVerifiedUser() && existing().email != '' && existing().email == request.auth.token.email)
       );
-      allow list: if isAdmin() ||
+      allow list: if isOperationsTeam() ||
         (isSignedIn() && existing().userId == request.auth.uid) ||
         (isVerifiedUser() && existing().email != '' && existing().email == request.auth.token.email);
       allow create: if isValidId(enquiryId)
@@ -465,7 +805,7 @@ service cloud.firestore {
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
         && (
-          (isAdmin() && (
+          (isOperationsTeam() && (
             (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'technicianNotes', 'repairEstimate', 'followUpDate', 'payableAmount', 'paymentStatus', 'paymentMethod', 'paymentReference', 'paidAt', 'updatedAt'])) ||
             (incoming().diff(existing()).affectedKeys().hasOnly(['customerName', 'mobile', 'whatsapp', 'email', 'macbookModel', 'macbookYear', 'processorType', 'serviceName', 'problemDescription', 'preferredContactMethod', 'preferredVisitDate', 'additionalNotes', 'status', 'technicianNotes', 'repairEstimate', 'followUpDate', 'payableAmount', 'paymentStatus', 'paymentMethod', 'paymentReference', 'paidAt', 'updatedAt']))
           )) ||
@@ -479,19 +819,19 @@ service cloud.firestore {
       allow delete: if isValidId(enquiryId) && isAdmin();
     }
 
-    // Repair Tracking (Non-PII status projection keyed by SHA-256 hash of enquiryCode + normalized mobile)
+    // Repair Tracking
     match /repairTracking/{trackingId} {
       allow get: if isValidId(trackingId);
-      allow list: if isAdmin();
+      allow list: if isOperationsTeam();
       allow create: if isValidId(trackingId)
         && isValidRepairTracking(incoming())
         && incoming().updatedAt == request.time
         && (
-          isAdmin() ||
+          isOperationsTeam() ||
           (incoming().status == 'New' && incoming().repairEstimate == '' && incoming().followUpDate == '' && incoming().publicUpdateNote == '')
         );
       allow update: if isValidId(trackingId)
-        && isAdmin()
+        && isOperationsTeam()
         && isValidRepairTracking(incoming())
         && incoming().enquiryCode == existing().enquiryCode
         && incoming().updatedAt == request.time
@@ -506,34 +846,261 @@ service cloud.firestore {
       allow delete: if isValidId(trackingId) && isAdmin();
     }
 
-    // Payment Submissions (Razorpay / Manual UPI / Bank payment confirmations)
+    // ERP Repair Job Cards (Admin & Staff intake; Technician on assigned jobs only; Customer can read & approve/reject own estimate)
+    match /repairJobs/{jobId} {
+      allow get: if isValidId(jobId) && (
+        isOperationsTeam() ||
+        (isTechnician() && existing().technicianUid == request.auth.uid) ||
+        (isSignedIn() && existing().customerUid == request.auth.uid) ||
+        (isVerifiedUser() && existing().customerEmail != '' && existing().customerEmail == request.auth.token.email)
+      );
+      allow list: if isOperationsTeam() ||
+        (isTechnician() && existing().technicianUid == request.auth.uid) ||
+        (isSignedIn() && existing().customerUid == request.auth.uid) ||
+        (isVerifiedUser() && existing().customerEmail != '' && existing().customerEmail == request.auth.token.email);
+      allow create: if isValidId(jobId)
+        && isOperationsTeam()
+        && isValidRepairJob(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(jobId)
+        && isValidRepairJob(incoming())
+        && incoming().jobCardCode == existing().jobCardCode
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isOperationsTeam() ||
+          (isTechnician()
+            && existing().technicianUid == request.auth.uid
+            && incoming().technicianUid == existing().technicianUid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['inspectionDetails', 'diagnosis', 'partsUsed', 'status', 'qualityChecklist', 'beforeImages', 'afterImages', 'internalNotes', 'customerUpdates', 'updatedAt'])) ||
+          (isVerifiedUser()
+            && !(existing().status in ['Delivered', 'Completed', 'Cancelled Repair'])
+            && (existing().customerUid == request.auth.uid || (existing().customerEmail != '' && existing().customerEmail == request.auth.token.email))
+            && incoming().approvalStatus in ['Approved', 'Rejected']
+            && incoming().status in ['Approved', 'Rejected Estimate']
+            && incoming().diff(existing()).affectedKeys().hasOnly(['approvalStatus', 'status', 'updatedAt']))
+        );
+      allow delete: if isValidId(jobId) && isAdmin();
+    }
+
+    // CRM Customers (Admin & Front-Desk Staff manage; private PII)
+    match /customers/{customerId} {
+      allow get: if isValidId(customerId) && (isOperationsTeam() || (isSignedIn() && existing().uid == request.auth.uid));
+      allow list: if isOperationsTeam() || (isSignedIn() && existing().uid == request.auth.uid);
+      allow create: if isValidId(customerId)
+        && isOperationsTeam()
+        && isValidCustomerRecord(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(customerId)
+        && isOperationsTeam()
+        && isValidCustomerRecord(incoming())
+        && incoming().customerCode == existing().customerCode
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(customerId) && isSuperAdmin();
+    }
+
+    // Technicians Roster
+    match /technicians/{techId} {
+      allow get: if isValidId(techId) && isStaff();
+      allow list: if isStaff();
+      allow create: if isValidId(techId)
+        && isAdmin()
+        && isValidTechnicianProfile(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(techId)
+        && isAdmin()
+        && isValidTechnicianProfile(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(techId) && isAdmin();
+    }
+
+    // Appointments
+    match /appointments/{appointmentId} {
+      allow get: if isValidId(appointmentId) && (
+        isOperationsTeam() ||
+        (isTechnician() && existing().technicianUid == request.auth.uid) ||
+        (isSignedIn() && existing().customerUid == request.auth.uid)
+      );
+      allow list: if isOperationsTeam() ||
+        (isTechnician() && existing().technicianUid == request.auth.uid) ||
+        (isSignedIn() && existing().customerUid == request.auth.uid);
+      allow create: if isValidId(appointmentId)
+        && isOperationsTeam()
+        && isValidAppointment(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(appointmentId)
+        && isValidAppointment(incoming())
+        && incoming().appointmentCode == existing().appointmentCode
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (isOperationsTeam() || (isTechnician() && existing().technicianUid == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'notes', 'updatedAt'])));
+      allow delete: if isValidId(appointmentId) && isAdmin();
+    }
+
+    // Spare Parts Inventory & Auditable Stock Movements
+    match /inventory/{partId} {
+      allow get: if isValidId(partId) && isStaff();
+      allow list: if isStaff();
+      allow create: if isValidId(partId)
+        && isAdmin()
+        && isValidInventoryItem(incoming())
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(partId)
+        && isStaff()
+        && isValidInventoryItem(incoming())
+        && incoming().updatedAt == request.time
+        && (isAdmin() || (isTechnician() && incoming().quantity < existing().quantity && incoming().diff(existing()).affectedKeys().hasOnly(['quantity', 'updatedAt'])));
+      allow delete: if isValidId(partId) && isAdmin();
+    }
+
+    match /stockMovements/{movementId} {
+      allow get: if isValidId(movementId) && isStaff();
+      allow list: if isStaff();
+      allow create: if isValidId(movementId)
+        && isStaff()
+        && isValidStockMovement(incoming())
+        && incoming().actorUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // Suppliers & Purchase Orders
+    match /suppliers/{supplierId} {
+      allow get: if isValidId(supplierId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(supplierId)
+        && isAdmin()
+        && isValidSupplierRecord(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if isValidId(supplierId)
+        && isAdmin()
+        && isValidSupplierRecord(incoming())
+        && incoming().createdAt == existing().createdAt;
+      allow delete: if isValidId(supplierId) && isAdmin();
+    }
+
+    match /purchaseOrders/{poId} {
+      allow get: if isValidId(poId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(poId)
+        && isAdmin()
+        && isValidPurchaseOrder(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(poId)
+        && isAdmin()
+        && isValidPurchaseOrder(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(poId) && isAdmin();
+    }
+
+    // Payment Submissions
     match /paymentSubmissions/{paymentId} {
       allow get: if isValidId(paymentId) && (
-        isAdmin() ||
+        isOperationsTeam() ||
         (isSignedIn() && existing().userId == request.auth.uid)
       );
-      allow list: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
+      allow list: if isOperationsTeam() || (isSignedIn() && existing().userId == request.auth.uid);
       allow create: if isValidId(paymentId)
         && isValidPaymentSubmission(incoming())
         && (!('userId' in incoming()) || incoming().userId == '' || (isSignedIn() && incoming().userId == request.auth.uid))
-        && incoming().status == 'Pending Verification'
+        && (isOperationsTeam() || incoming().status == 'Pending Verification')
         && incoming().createdAt == request.time;
       allow update: if isValidId(paymentId)
-        && isAdmin()
+        && isOperationsTeam()
         && isValidPaymentSubmission(incoming())
         && incoming().createdAt == existing().createdAt
-        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'verifiedAt', 'notes']);
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'verifiedAt', 'notes', 'refundAmount', 'refundNote', 'invoiceNumber', 'jobCardCode']);
       allow delete: if isValidId(paymentId) && isAdmin();
     }
 
-    // Contact Messages (Private PII - Admin or signed-in owner read; Admin reply/read/delete; Public create)
+    // Invoices & Receipts (Private to Customer owner, Admin & Front-Desk Staff; Technicians denied)
+    match /invoices/{invoiceId} {
+      allow get: if isValidId(invoiceId) && (
+        isOperationsTeam() ||
+        (isSignedIn() && existing().customerUid == request.auth.uid) ||
+        (isVerifiedUser() && existing().customerEmail != '' && existing().customerEmail == request.auth.token.email)
+      );
+      allow list: if isOperationsTeam() ||
+        (isSignedIn() && existing().customerUid == request.auth.uid) ||
+        (isVerifiedUser() && existing().customerEmail != '' && existing().customerEmail == request.auth.token.email);
+      allow create: if isValidId(invoiceId)
+        && isOperationsTeam()
+        && isValidInvoice(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(invoiceId)
+        && isOperationsTeam()
+        && isValidInvoice(incoming())
+        && incoming().invoiceNumber == existing().invoiceNumber
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(invoiceId) && isSuperAdmin();
+    }
+
+    // Business Expenses (Admin / Super Admin only)
+    match /expenses/{expenseId} {
+      allow get: if isValidId(expenseId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(expenseId)
+        && isAdmin()
+        && isValidExpense(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if isValidId(expenseId)
+        && isAdmin()
+        && isValidExpense(incoming())
+        && incoming().createdAt == existing().createdAt;
+      allow delete: if isValidId(expenseId) && isAdmin();
+    }
+
+    // In-App Notifications
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId) && (
+        isOperationsTeam() ||
+        (isSignedIn() && existing().recipientUid == request.auth.uid) ||
+        (isVerifiedUser() && existing().recipientEmail != '' && existing().recipientEmail == request.auth.token.email)
+      );
+      allow list: if isOperationsTeam() ||
+        (isSignedIn() && existing().recipientUid == request.auth.uid) ||
+        (isVerifiedUser() && existing().recipientEmail != '' && existing().recipientEmail == request.auth.token.email);
+      allow create: if isValidId(notificationId)
+        && isValidNotification(incoming())
+        && incoming().createdAt == request.time
+        && (isStaff() || (incoming().audience == 'all_admins' && incoming().category == 'booking'));
+      allow update: if isValidId(notificationId)
+        && isValidNotification(incoming())
+        && incoming().createdAt == existing().createdAt
+        && (isOperationsTeam() || (isSignedIn() && (existing().recipientUid == request.auth.uid || existing().recipientEmail == request.auth.token.email) && incoming().diff(existing()).changedKeys().hasOnly(['isRead'])));
+      allow delete: if isValidId(notificationId) && isAdmin();
+    }
+
+    // Append-Only Security & Audit Logs
+    match /activityLogs/{logId} {
+      allow get: if isValidId(logId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(logId)
+        && isVerifiedUser()
+        && isValidActivityLog(incoming())
+        && incoming().actorUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // Contact Messages
     match /contactMessages/{messageId} {
       allow get: if isValidId(messageId) && (
-        isAdmin() ||
+        isOperationsTeam() ||
         (isSignedIn() && existing().userId == request.auth.uid) ||
         (isVerifiedUser() && existing().email != '' && existing().email == request.auth.token.email)
       );
-      allow list: if isAdmin() ||
+      allow list: if isOperationsTeam() ||
         (isSignedIn() && existing().userId == request.auth.uid) ||
         (isVerifiedUser() && existing().email != '' && existing().email == request.auth.token.email);
       allow create: if isValidId(messageId)
@@ -544,7 +1111,7 @@ service cloud.firestore {
         && incoming().isRead == false
         && incoming().createdAt == request.time;
       allow update: if isValidId(messageId)
-        && isAdmin()
+        && isOperationsTeam()
         && isValidContactMessage(incoming())
         && incoming().createdAt == existing().createdAt
         && incoming().diff(existing()).affectedKeys().hasOnly(['isRead', 'adminReply', 'repliedAt']);
@@ -595,7 +1162,7 @@ service cloud.firestore {
       allow delete: if isValidId(postId) && isAdmin();
     }
 
-    // Customer & Verified Google Reviews (Anyone can read visible reviews & submit a customer review; Admin moderates)
+    // Customer & Verified Google Reviews
     match /reviews/{reviewId} {
       allow get: if isValidId(reviewId) && (existing().isVisible == true || isAdmin());
       allow list: if existing().isVisible == true || isAdmin();

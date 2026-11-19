@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Clock, Globe, MapPin, MessageCircle, Navigation, Phone, Send } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { extractReadableError } from '../lib/firebase';
 import { useSeoMeta } from '../utils/seo';
 import { buildTelHref, buildWhatsAppUrl } from '../utils/whatsapp';
 import { GoogleMapLocation } from '../components/GoogleMapLocation';
@@ -63,7 +64,10 @@ export function ContactPage({
       onNotify('success', 'Your message has been received by Refix Pro.');
     } catch (err) {
       console.error(err);
-      onNotify('error', 'Unable to send message right now. Please WhatsApp or call us directly.');
+      onNotify(
+        'error',
+        extractReadableError(err, 'Unable to send message right now. Please WhatsApp or call us directly.')
+      );
     } finally {
       setSubmitting(false);
     }
@@ -225,7 +229,7 @@ export function ContactPage({
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] text-sm focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+                  className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] text-sm focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
                 />
               </div>
               <div>
@@ -238,7 +242,7 @@ export function ContactPage({
                   required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+                  className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
                 />
               </div>
             </div>
@@ -253,7 +257,7 @@ export function ContactPage({
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] text-sm focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+                  className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] text-sm focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
                 />
               </div>
               <div>
@@ -267,7 +271,7 @@ export function ContactPage({
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                   placeholder="e.g. MacBook Air M2 Screen Availability"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] text-sm focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+                  className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] text-sm focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
                 />
               </div>
             </div>
@@ -290,7 +294,7 @@ export function ContactPage({
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] disabled:opacity-60 text-white text-sm font-semibold transition-colors"
+              className="min-h-[44px] inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] disabled:opacity-60 text-white text-sm font-semibold transition-colors"
             >
               <Send className="w-4 h-4" />
               {submitting ? 'Sending...' : 'Send Message'}

@@ -1,20 +1,33 @@
-import { useMemo, useState } from 'react';
-import { Download, MessageCircle, Search, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Download, Inbox, Mail, MessageCircle, Search, Trash2, Wrench, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useErp } from '../../context/ErpContext';
+import { extractReadableError } from '../../lib/firebase';
 import { ENQUIRY_STATUSES, EnquiryStatus, PaymentStatus, RepairEnquiry } from '../../types';
 import { buildWhatsAppUrl } from '../../utils/whatsapp';
+import { buildEnquiryEmailDraft } from '../../utils/emailHelper';
+import { openEmailComposer } from '../../utils/pdfExport';
+import { ConfirmDialog } from '../ConfirmDialog';
+import { Button, EmptyState, PaginationBar, StatusBadge } from '../ui/DesignSystem';
+
+const PAGE_SIZE = 12;
 
 export function AdminEnquiriesTab({
   onNotify,
+  onCreatedJob,
 }: {
   onNotify: (type: 'success' | 'error', message: string) => void;
+  onCreatedJob?: () => void;
 }) {
-  const { enquiries, updateEnquiry, deleteEnquiry } = useApp();
+  const { settings, enquiries, updateEnquiry, deleteEnquiry, hasPermission } = useApp();
+  const { repairJobs, createJobFromEnquiry } = useErp();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [selected, setSelected] = useState<RepairEnquiry | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [creatingJobId, setCreatingJobId] = useState<string | null>(null);
 
+  const [page, setPage] = useState(1);
   const [editStatus, setEditStatus] = useState<EnquiryStatus>('New');
   const [editNotes, setEditNotes] = useState('');
   const [editEstimate, setEditEstimate] = useState('');
@@ -39,6 +52,16 @@ export function AdminEnquiriesTab({
       return statusOk && textOk;
     });
   }, [enquiries, search, statusFilter]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = useMemo(
+    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filtered, page]
+  );
 
   const openDetail = (enq: RepairEnquiry) => {
     setSelected(enq);
@@ -81,8 +104,7 @@ export function AdminEnquiriesTab({
       onNotify('success', `Updated enquiry ${selected.enquiryCode}`);
       setSelected(null);
     } catch (err) {
-      console.error(err);
-      onNotify('error', 'Failed to update enquiry.');
+      onNotify('error', extractReadableError(err, 'Failed to update enquiry.'));
     } finally {
       setSaving(false);
     }
@@ -95,8 +117,7 @@ export function AdminEnquiriesTab({
       if (selected?.id === id) setSelected(null);
       onNotify('success', 'Enquiry deleted.');
     } catch (err) {
-      console.error(err);
-      onNotify('error', 'Failed to delete enquiry.');
+      onNotify('error', extractReadableError(err, 'Failed to delete enquiry.'));
     }
   };
 
@@ -175,132 +196,168 @@ export function AdminEnquiriesTab({
           </select>
         </div>
 
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="sm"
+          icon={<Download className="w-4 h-4" />}
           onClick={exportCsv}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#D2D2D7] bg-white hover:bg-[#F5F5F7] text-xs font-semibold text-[#1D1D1F] whitespace-nowrap"
         >
-          <Download className="w-4 h-4" />
           Download CSV
-        </button>
+        </Button>
       </div>
 
       {/* Table */}
-      <div className="rounded-xl border border-[#E5E5EA] bg-white overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-[#E5E5EA] bg-[#F5F5F7] text-xs font-semibold text-[#424245]">
-              <th className="py-3 px-4">ID</th>
-              <th className="py-3 px-4">Customer</th>
-              <th className="py-3 px-4">MacBook & Service</th>
-              <th className="py-3 px-4">Status</th>
-              <th className="py-3 px-4">Estimate</th>
-              <th className="py-3 px-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#E5E5EA] text-xs sm:text-sm">
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="py-10 text-center text-[#6E6E73]">
-                  No repair enquiries match your current filter.
-                </td>
-              </tr>
-            ) : (
-              filtered.map((enq) => (
-                <tr key={enq.id} className="hover:bg-[#F5F5F7]/60">
-                  <td className="py-3 px-4 font-mono font-semibold tabular-nums whitespace-nowrap">
-                    {enq.enquiryCode}
-                  </td>
-                  <td className="py-3 px-4">
-                    <p className="font-semibold text-[#1D1D1F]">{enq.customerName}</p>
-                    <p className="text-xs font-mono text-[#6E6E73] tabular-nums">{enq.mobile}</p>
-                  </td>
-                  <td className="py-3 px-4">
-                    <p className="font-medium text-[#1D1D1F]">{enq.macbookModel}</p>
-                    <p className="text-xs text-[#6E6E73]">{enq.serviceName}</p>
-                  </td>
-                  <td className="py-3 px-4 whitespace-nowrap font-medium text-[#1D1D1F]">
-                    {enq.status}
-                  </td>
-                  <td className="py-3 px-4 font-mono tabular-nums text-xs text-[#424245]">
-                    <p>{enq.repairEstimate || '—'}</p>
-                    {enq.payableAmount && enq.payableAmount > 0 ? (
-                      <p
-                        className={`text-[11px] font-semibold mt-0.5 ${
-                          enq.paymentStatus === 'Paid'
-                            ? 'text-emerald-700'
-                            : enq.paymentStatus === 'Pending Verification'
-                              ? 'text-amber-700'
-                              : 'text-[#0066CC]'
-                        }`}
-                      >
-                        Bill: ₹{enq.payableAmount.toLocaleString('en-IN')} ({enq.paymentStatus || 'Unpaid'})
-                      </p>
-                    ) : null}
-                  </td>
-                  <td className="py-3 px-4 text-right whitespace-nowrap space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => openDetail(enq)}
-                      className="px-3 py-1.5 rounded-lg bg-[#0066CC] hover:bg-[#0052A3] text-white text-xs font-semibold"
-                    >
-                      Manage
-                    </button>
-                    <a
-                      href={buildWhatsAppUrl(
-                        enq.whatsapp || enq.mobile,
-                        `Hello ${enq.customerName}, regarding your Refix Pro repair booking ${enq.enquiryCode} (${enq.macbookModel}): Status is "${enq.status}".`
-                      )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#16A34A] hover:bg-[#15803D] text-white text-xs font-semibold"
-                    >
-                      <MessageCircle className="w-3.5 h-3.5" />
-                      WA
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDeleteId(enq.id)}
-                      aria-label={`Delete enquiry ${enq.enquiryCode}`}
-                      className="p-1.5 rounded-lg text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
+      {filtered.length === 0 ? (
+        <EmptyState
+          title="No repair enquiries match your filter"
+          description="Try clearing the search query or switching back to All Statuses."
+          icon={<Inbox className="w-5 h-5" />}
+          action={
+            search || statusFilter !== 'All' ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setSearch('');
+                  setStatusFilter('All');
+                }}
+              >
+                Reset Filters
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <div className="rounded-2xl border border-[#E5E5EA] bg-white overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-[#E5E5EA] bg-[#F5F5F7] text-xs font-semibold text-[#424245]">
+                  <th className="py-3 px-4">ID</th>
+                  <th className="py-3 px-4">Customer</th>
+                  <th className="py-3 px-4">MacBook & Service</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Estimate</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Delete Confirmation Modal */}
-      {confirmDeleteId && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-[#E5E5EA] max-w-sm w-full p-6 space-y-4">
-            <h3 className="text-lg font-bold text-[#1D1D1F]">Delete Repair Enquiry?</h3>
-            <p className="text-sm text-[#424245]">
-              This action permanently removes the enquiry record from Firestore.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDeleteId(null)}
-                className="px-4 py-2 rounded-lg border border-[#D2D2D7] text-xs font-semibold"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDelete(confirmDeleteId)}
-                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold"
-              >
-                Delete
-              </button>
-            </div>
+              </thead>
+              <tbody className="divide-y divide-[#E5E5EA] text-xs sm:text-sm">
+                {paginated.map((enq) => (
+                  <tr key={enq.id} className="hover:bg-[#F5F5F7]/60">
+                    <td className="py-3 px-4 font-mono font-semibold text-[#0066CC] tabular-nums whitespace-nowrap">
+                      {enq.enquiryCode}
+                    </td>
+                    <td className="py-3 px-4">
+                      <p className="font-semibold text-[#1D1D1F]">{enq.customerName}</p>
+                      <p className="text-xs font-mono text-[#6E6E73] tabular-nums">{enq.mobile}</p>
+                    </td>
+                    <td className="py-3 px-4">
+                      <p className="font-medium text-[#1D1D1F]">{enq.macbookModel}</p>
+                      <p className="text-xs text-[#6E6E73]">{enq.serviceName}</p>
+                    </td>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <StatusBadge label={enq.status} />
+                    </td>
+                    <td className="py-3 px-4 font-mono tabular-nums text-xs text-[#424245]">
+                      <p>{enq.repairEstimate || '—'}</p>
+                      {enq.payableAmount && enq.payableAmount > 0 ? (
+                        <div className="mt-1 flex items-center gap-1.5">
+                          <span className="font-semibold text-[#1D1D1F]">
+                            ₹{enq.payableAmount.toLocaleString('en-IN')}
+                          </span>
+                          <StatusBadge label={enq.paymentStatus || 'Unpaid'} />
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="py-3 px-4 text-right whitespace-nowrap space-x-1.5">
+                      {hasPermission('jobs', 'create') && !repairJobs.some((j) => j.enquiryCode === enq.enquiryCode) && (
+                        <button
+                          type="button"
+                          disabled={creatingJobId === enq.id}
+                          onClick={async () => {
+                            setCreatingJobId(enq.id);
+                            try {
+                              const jc = await createJobFromEnquiry(enq);
+                              onNotify('success', `Job Card ${jc.jobCardCode} created from ${enq.enquiryCode}.`);
+                              onCreatedJob?.();
+                            } catch (err) {
+                              onNotify('error', extractReadableError(err, 'Failed to create Job Card.'));
+                            } finally {
+                              setCreatingJobId(null);
+                            }
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#0F172A] hover:bg-black text-white text-xs font-semibold disabled:opacity-50"
+                        >
+                          <Wrench className="w-3 h-3" />
+                          {creatingJobId === enq.id ? 'Creating...' : 'Create Job Card'}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => openDetail(enq)}
+                        className="px-3 py-1.5 rounded-lg bg-[#0066CC] hover:bg-[#0052A3] text-white text-xs font-semibold"
+                      >
+                        Manage
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEmailComposer(buildEnquiryEmailDraft(enq, settings))}
+                        title="Send Email Update"
+                        aria-label={`Email update for ${enq.enquiryCode}`}
+                        className="p-1.5 rounded-lg border border-[#D2D2D7] hover:bg-[#F5F5F7] text-[#0066CC] align-middle"
+                      >
+                        <Mail className="w-4 h-4" />
+                      </button>
+                      <a
+                        href={buildWhatsAppUrl(
+                          enq.whatsapp || enq.mobile,
+                          `Hello ${enq.customerName}, regarding your Refix Pro repair booking ${enq.enquiryCode} (${enq.macbookModel}): Status is "${enq.status}".`
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#16A34A] hover:bg-[#15803D] text-white text-xs font-semibold"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        WA
+                      </a>
+                      {hasPermission('enquiries', 'delete') && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteId(enq.id)}
+                          aria-label={`Delete enquiry ${enq.enquiryCode}`}
+                          className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 align-middle"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+          <PaginationBar
+            page={page}
+            totalPages={totalPages}
+            totalItems={filtered.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+          />
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(confirmDeleteId)}
+        title="Delete Repair Enquiry?"
+        description="This action permanently removes the enquiry record from Firestore."
+        confirmLabel="Delete"
+        onCancel={() => setConfirmDeleteId(null)}
+        onConfirm={() => {
+          if (confirmDeleteId) return handleDelete(confirmDeleteId);
+        }}
+      />
 
       {/* Detail & Edit Drawer/Modal */}
       {selected && (
@@ -466,18 +523,41 @@ export function AdminEnquiriesTab({
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                <a
-                  href={buildWhatsAppUrl(
-                    selected.whatsapp || selected.mobile,
-                    `Hello ${selected.customerName}, Refix Pro (SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007) update for ${selected.enquiryCode} (${selected.macbookModel}): Status: ${editStatus}${editEstimate ? `, Estimate: ${editEstimate}` : ''}.`
-                  )}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#16A34A] hover:bg-[#15803D] text-white text-xs font-semibold"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  Send Status on WhatsApp
-                </a>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={buildWhatsAppUrl(
+                      selected.whatsapp || selected.mobile,
+                      `Hello ${selected.customerName}, Refix Pro (SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007) update for ${selected.enquiryCode} (${selected.macbookModel}): Status: ${editStatus}${editEstimate ? `, Estimate: ${editEstimate}` : ''}.`
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#16A34A] hover:bg-[#15803D] text-white text-xs font-semibold"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    WhatsApp Update
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openEmailComposer(
+                        buildEnquiryEmailDraft(
+                          {
+                            ...selected,
+                            status: editStatus,
+                            repairEstimate: editEstimate,
+                            followUpDate: editFollowUp,
+                            technicianNotes: editNotes,
+                          },
+                          settings
+                        )
+                      )
+                    }
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#0066CC]/30 bg-blue-50 text-[#0066CC] hover:bg-blue-100 text-xs font-semibold"
+                  >
+                    <Mail className="w-4 h-4" />
+                    Send Email
+                  </button>
+                </div>
                 <div className="flex gap-2">
                   <button
                     type="button"

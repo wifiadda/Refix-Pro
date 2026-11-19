@@ -4,11 +4,30 @@ import { useApp } from '../context/AppContext';
 import type { GoogleLiveReview } from '../types';
 
 const REFIX_CENTER = { lat: 28.4716, lng: 77.0436 };
-const PLACE_FIELDS = ['id', 'displayName', 'rating', 'userRatingCount', 'reviews', 'googleMapsURI'];
+const PLACE_FIELDS = [
+  'id',
+  'displayName',
+  'formattedAddress',
+  'rating',
+  'userRatingCount',
+  'reviews',
+  'googleMapsURI',
+];
 
 function isQuotaError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err || '');
   return /quota|RESOURCE_EXHAUSTED|OVER_QUERY_LIMIT|rate.?limit|429/i.test(msg);
+}
+
+export function buildGoogleWriteReviewUrl(placeId?: string | null, fallbackUrl?: string): string {
+  const cleanId = (placeId || '').trim();
+  if (cleanId) {
+    return `https://search.google.com/local/writereview?placeid=${encodeURIComponent(cleanId)}`;
+  }
+  return (
+    (fallbackUrl || '').trim() ||
+    'https://www.google.com/maps/search/?api=1&query=Refix+Pro+SCF-92+Sector+14+Main+Market+Gurugram'
+  );
 }
 
 export function LiveGoogleReviewsSync() {
@@ -59,11 +78,11 @@ export function LiveGoogleReviewsSync() {
           matchedPlace = place;
         } else {
           const { places } = await placesLib.Place.searchByText({
-            textQuery: `${businessName} SCF-92 Sector 14 Main Market Gurugram`,
+            textQuery: `${businessName} Sector 14 Main Market Gurugram`,
             fields: PLACE_FIELDS,
             locationBias: {
               center: REFIX_CENTER,
-              radius: 1500,
+              radius: 2500,
             },
             maxResultCount: 1,
           });
@@ -84,6 +103,7 @@ export function LiveGoogleReviewsSync() {
 
         const placeIdValue: string | null = matchedPlace.id || null;
         const placeMapsUri: string | null = matchedPlace.googleMapsURI || null;
+        const writeReviewUri = buildGoogleWriteReviewUrl(placeIdValue, placeMapsUri || settings.googleReviewsUrl);
         const rawReviews: PlaceReviewLike[] = Array.isArray(matchedPlace.reviews)
           ? (matchedPlace.reviews as PlaceReviewLike[])
           : [];
@@ -105,14 +125,15 @@ export function LiveGoogleReviewsSync() {
           loaded: true,
           loading: false,
           error: null,
-          placeId: matchedPlace.id || null,
+          placeId: placeIdValue,
           displayName: matchedPlace.displayName || null,
           rating: typeof matchedPlace.rating === 'number' ? matchedPlace.rating : null,
           userRatingCount:
             typeof matchedPlace.userRatingCount === 'number'
               ? matchedPlace.userRatingCount
               : null,
-          googleMapsUri: matchedPlace.googleMapsURI || null,
+          googleMapsUri: placeMapsUri,
+          writeAReviewUri: writeReviewUri,
           reviews: liveReviews,
         });
       } catch (err) {
@@ -135,7 +156,7 @@ export function LiveGoogleReviewsSync() {
     return () => {
       cancelled = true;
     };
-  }, [placesLib, placeIdSetting, businessName, googleSyncNonce, setGoogleLiveProfile]);
+  }, [placesLib, placeIdSetting, businessName, googleSyncNonce, setGoogleLiveProfile, settings.googleReviewsUrl]);
 
   return null;
 }

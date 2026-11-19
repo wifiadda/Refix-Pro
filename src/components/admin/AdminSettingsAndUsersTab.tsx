@@ -1,8 +1,47 @@
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, Image as ImageIcon, Plus, Shield, Trash2, Upload } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Database,
+  Image as ImageIcon,
+  KeyRound,
+  Lock,
+  Plus,
+  Search,
+  Settings,
+  Shield,
+  Trash2,
+  Upload,
+  UserCheck,
+  UserX,
+  X,
+} from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { OWNER_ADMIN_EMAIL, extractReadableError } from '../../lib/firebase';
 import { compressImageToDataUrl } from '../../utils/whatsapp';
-import { WebsiteSettings } from '../../types';
+import { ConfirmDialog } from '../ConfirmDialog';
+import { AdminAuditBackupTab } from './AdminAuditBackupTab';
+import {
+  ALL_ADMIN_MODULES,
+  DEFAULT_ADMIN_PERMISSIONS,
+  DEFAULT_STAFF_PERMISSIONS,
+  type AdminModuleKey,
+  type AdminPermissions,
+  type AppUserProfile,
+  type PermissionAction,
+  type UserRole,
+  type WebsiteSettings,
+} from '../../types';
+
+const ALL_PERMISSION_ACTIONS: { id: PermissionAction; label: string }[] = [
+  { id: 'view', label: 'View' },
+  { id: 'create', label: 'Create' },
+  { id: 'edit', label: 'Edit' },
+  { id: 'delete', label: 'Delete' },
+  { id: 'approve', label: 'Approve' },
+  { id: 'export', label: 'Export' },
+  { id: 'manage_settings', label: 'Manage Settings' },
+];
 
 export function AdminSettingsAndUsersTab({
   mode,
@@ -18,14 +57,20 @@ export function AdminSettingsAndUsersTab({
     saveGalleryImage,
     deleteGalleryImage,
     adminUsers,
+    registeredUsers,
+    setUserRole,
+    toggleUserActive,
     saveAdminUser,
     removeAdminUser,
     user,
+    isSuperAdmin,
+    hasPermission,
     googleLiveProfile,
   } = useApp();
 
   const [form, setForm] = useState<WebsiteSettings>({ ...settings });
   const [saving, setSaving] = useState(false);
+  const [settingsSubTab, setSettingsSubTab] = useState<'website' | 'erp'>('website');
 
   useEffect(() => {
     setForm({ ...settings });
@@ -35,17 +80,32 @@ export function AdminSettingsAndUsersTab({
   const [newGalleryCaption, setNewGalleryCaption] = useState('');
   const [newGalleryCategory, setNewGalleryCategory] = useState('Logic Board Lab');
   const [newGalleryUrl, setNewGalleryUrl] = useState('');
+  const [deleteGalleryTarget, setDeleteGalleryTarget] = useState<{ id: string; title: string } | null>(null);
 
   const [newAdminUid, setNewAdminUid] = useState('');
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminName, setNewAdminName] = useState('');
-  const [newAdminRole, setNewAdminRole] = useState<'admin' | 'super_admin'>('admin');
+  const [newAdminRole, setNewAdminRole] = useState<'technician' | 'staff' | 'admin' | 'super_admin'>('staff');
+  const [userSearch, setUserSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all');
+  const [updatingRoleUid, setUpdatingRoleUid] = useState<string | null>(null);
+
+  const [permModalUser, setPermModalUser] = useState<AppUserProfile | null>(null);
+  const [modalPerms, setModalPerms] = useState<AdminPermissions>(DEFAULT_ADMIN_PERMISSIONS);
+  const [savingPerms, setSavingPerms] = useState(false);
+  const [revokeAdminTarget, setRevokeAdminTarget] = useState<{ uid: string; email: string } | null>(null);
 
   if (mode === 'users') {
+    const canManageUsers = isSuperAdmin || hasPermission('users', 'edit');
+
     const handleAddAdmin = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!newAdminUid.trim() || !newAdminEmail.trim() || !newAdminName.trim()) {
         onNotify('error', 'UID, Email, and Display Name are required.');
+        return;
+      }
+      if (newAdminRole === 'super_admin' && !isSuperAdmin) {
+        onNotify('error', 'Only Super Admin can assign Super Admin privileges.');
         return;
       }
       try {
@@ -54,14 +114,143 @@ export function AdminSettingsAndUsersTab({
           email: newAdminEmail.trim(),
           displayName: newAdminName.trim(),
           role: newAdminRole,
+          isActive: true,
+          permissions:
+            newAdminRole === 'admin'
+              ? DEFAULT_ADMIN_PERMISSIONS
+              : newAdminRole === 'staff'
+                ? DEFAULT_STAFF_PERMISSIONS
+                : undefined,
         });
         setNewAdminUid('');
         setNewAdminEmail('');
         setNewAdminName('');
-        onNotify('success', 'Authorized admin added.');
+        onNotify('success', `Staff role (${newAdminRole}) assigned successfully.`);
       } catch (err) {
         console.error(err);
-        onNotify('error', 'Unable to add admin user.');
+        onNotify('error', extractReadableError(err, 'Unable to assign staff role.'));
+      }
+    };
+
+    const q = userSearch.trim().toLowerCase();
+    const adminMap = new Map(adminUsers.map((a) => [a.uid, a]));
+
+    const resolveEffectiveRole = (u: AppUserProfile): UserRole => {
+      if (u.email.toLowerCase() === OWNER_ADMIN_EMAIL.toLowerCase()) return 'super_admin';
+      const adm = adminMap.get(u.uid);
+      if (adm?.role === 'super_admin' || u.role === 'super_admin') return 'super_admin';
+      if (adm?.role === 'admin' || u.role === 'admin') return 'admin';
+      if (adm?.role === 'staff' || u.role === 'staff') return 'staff';
+      if (adm?.role === 'technician' || u.role === 'technician') return 'technician';
+      return 'user';
+    };
+
+    const filteredUsers = registeredUsers.filter((u) => {
+      const effRole = resolveEffectiveRole(u);
+      if (roleFilter !== 'all' && effRole !== roleFilter) return false;
+      return (
+        !q ||
+        u.email.toLowerCase().includes(q) ||
+        u.displayName.toLowerCase().includes(q) ||
+        u.uid.toLowerCase().includes(q)
+      );
+    });
+
+    const handleRoleChange = async (
+      target: AppUserProfile,
+      nextRole: UserRole
+    ) => {
+      setUpdatingRoleUid(target.uid);
+      try {
+        await setUserRole(target.uid, nextRole, {
+          email: target.email,
+          displayName: target.displayName,
+          permissions:
+            nextRole === 'admin'
+              ? adminMap.get(target.uid)?.permissions || target.permissions || DEFAULT_ADMIN_PERMISSIONS
+              : nextRole === 'staff'
+                ? adminMap.get(target.uid)?.permissions || target.permissions || DEFAULT_STAFF_PERMISSIONS
+                : undefined,
+          isActive: target.isActive !== false,
+        });
+        onNotify('success', `${target.displayName} updated to ${nextRole.replace('_', ' ')} role.`);
+      } catch (err) {
+        console.error(err);
+        onNotify(
+          'error',
+          err instanceof Error ? err.message : 'Unable to update user role right now.'
+        );
+      } finally {
+        setUpdatingRoleUid(null);
+      }
+    };
+
+    const handleToggleActive = async (target: AppUserProfile) => {
+      const nextActive = target.isActive === false;
+      setUpdatingRoleUid(target.uid);
+      try {
+        await toggleUserActive(target.uid, nextActive);
+        onNotify(
+          'success',
+          `${target.displayName} account ${nextActive ? 'reactivated' : 'deactivated'}.`
+        );
+      } catch (err) {
+        console.error(err);
+        onNotify(
+          'error',
+          err instanceof Error ? err.message : 'Unable to update account active state.'
+        );
+      } finally {
+        setUpdatingRoleUid(null);
+      }
+    };
+
+    const openPermissionsModal = (target: AppUserProfile) => {
+      const existingPerms =
+        adminMap.get(target.uid)?.permissions || target.permissions || DEFAULT_ADMIN_PERMISSIONS;
+      setModalPerms({
+        modules: [...(existingPerms.modules || DEFAULT_ADMIN_PERMISSIONS.modules)],
+        actions: [...(existingPerms.actions || DEFAULT_ADMIN_PERMISSIONS.actions)],
+      });
+      setPermModalUser(target);
+    };
+
+    const toggleModulePerm = (mod: AdminModuleKey) => {
+      setModalPerms((prev) => ({
+        ...prev,
+        modules: prev.modules.includes(mod)
+          ? prev.modules.filter((m) => m !== mod)
+          : [...prev.modules, mod],
+      }));
+    };
+
+    const toggleActionPerm = (act: PermissionAction) => {
+      setModalPerms((prev) => ({
+        ...prev,
+        actions: prev.actions.includes(act)
+          ? prev.actions.filter((a) => a !== act)
+          : [...prev.actions, act],
+      }));
+    };
+
+    const handleSavePermissions = async () => {
+      if (!permModalUser) return;
+      setSavingPerms(true);
+      try {
+        const effRole = resolveEffectiveRole(permModalUser);
+        await setUserRole(permModalUser.uid, effRole === 'user' ? 'admin' : effRole, {
+          email: permModalUser.email,
+          displayName: permModalUser.displayName,
+          permissions: modalPerms,
+          isActive: permModalUser.isActive !== false,
+        });
+        onNotify('success', `Module & action permissions saved for ${permModalUser.displayName}.`);
+        setPermModalUser(null);
+      } catch (err) {
+        console.error(err);
+        onNotify('error', err instanceof Error ? err.message : 'Failed to save permissions.');
+      } finally {
+        setSavingPerms(false);
       }
     };
 
@@ -70,9 +259,14 @@ export function AdminSettingsAndUsersTab({
         <div className="p-6 rounded-xl border border-[#E5E5EA] bg-white space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-lg font-bold text-[#1D1D1F]">Account Security & Access</h2>
+              <h2 className="text-lg font-bold text-[#1D1D1F]">
+                5-Role Security &amp; Access Control
+              </h2>
               <p className="text-xs text-[#6E6E73] mt-1">
-                Signed in as <span className="font-mono font-semibold text-[#1D1D1F]">{user?.email}</span> (UID: <span className="font-mono">{user?.uid}</span>)
+                Signed in as <span className="font-mono font-semibold text-[#1D1D1F]">{user?.email}</span> · Role:{' '}
+                <span className="font-semibold text-[#0066CC]">
+                  {isSuperAdmin ? 'Super Admin (Full Ownership)' : 'Administrator'}
+                </span>
               </p>
             </div>
             <a
@@ -87,89 +281,396 @@ export function AdminSettingsAndUsersTab({
           </div>
         </div>
 
+        {/* Registered Users & 5-Role RBAC Matrix */}
         <div className="p-6 rounded-xl border border-[#E5E5EA] bg-white space-y-5">
-          <h3 className="text-base font-bold text-[#1D1D1F]">Authorized Admin Users ({adminUsers.length})</h3>
-          <div className="divide-y divide-[#E5E5EA] border-y border-[#E5E5EA]">
-            {adminUsers.map((adm) => (
-              <div key={adm.id} className="py-3 flex items-center justify-between gap-4 text-xs sm:text-sm">
-                <div>
-                  <p className="font-semibold text-[#1D1D1F]">
-                    {adm.displayName} · <span className="text-[#0066CC]">{adm.role}</span>
-                  </p>
-                  <p className="text-xs text-[#6E6E73] font-mono">
-                    {adm.email} · {adm.uid}
-                  </p>
-                </div>
-                {adm.uid !== user?.uid && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await removeAdminUser(adm.uid);
-                      onNotify('success', 'Admin access revoked.');
-                    }}
-                    className="p-1.5 rounded-lg text-red-600 hover:bg-red-50"
-                    aria-label={`Remove ${adm.email}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-[#1D1D1F]">
+                Registered Users, Staff &amp; Permissions ({registeredUsers.length})
+              </h3>
+              <p className="text-xs text-[#6E6E73] mt-0.5">
+                Assign <strong>Customer</strong>, <strong>Technician</strong>, <strong>Front-Desk Staff</strong>, <strong>Admin</strong>, or{' '}
+                <strong>Super Admin</strong> roles. Super Admin accounts are strictly protected from modification by ordinary admins.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 shrink-0">
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value as 'all' | UserRole)}
+                className="px-3 py-2 rounded-lg border border-[#D2D2D7] text-xs bg-white font-semibold"
+              >
+                <option value="all">All Roles</option>
+                <option value="super_admin">Super Admin</option>
+                <option value="admin">Admin</option>
+                <option value="staff">Front-Desk Staff</option>
+                <option value="technician">Technician</option>
+                <option value="user">Customer</option>
+              </select>
+              <div className="relative w-full sm:w-60">
+                <Search className="w-3.5 h-3.5 text-[#6E6E73] absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="search"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="Search email, name or UID..."
+                  className="w-full pl-8 pr-3 py-2 rounded-lg border border-[#D2D2D7] text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+                />
               </div>
-            ))}
+            </div>
           </div>
 
-          <form onSubmit={handleAddAdmin} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2 items-end">
-            <div>
-              <label className="block text-xs font-semibold mb-1">Firebase UID *</label>
-              <input
-                type="text"
-                required
-                value={newAdminUid}
-                onChange={(e) => setNewAdminUid(e.target.value)}
-                placeholder="User UID"
-                className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] text-xs font-mono"
-              />
+          {filteredUsers.length === 0 ? (
+            <div className="py-8 text-center text-xs text-[#6E6E73] border border-dashed border-[#D2D2D7] rounded-xl">
+              {registeredUsers.length === 0
+                ? 'No signed-in customer accounts recorded yet. Once users sign in, they appear here for role management.'
+                : 'No users match your filter.'}
             </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1">Google Email *</label>
-              <input
-                type="email"
-                required
-                value={newAdminEmail}
-                onChange={(e) => setNewAdminEmail(e.target.value)}
-                placeholder="staff@refixpro.in"
-                className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] text-xs"
-              />
+          ) : (
+            <div className="divide-y divide-[#E5E5EA] border-y border-[#E5E5EA]">
+              {filteredUsers.map((u) => {
+                const effRole = resolveEffectiveRole(u);
+                const admRecord = adminMap.get(u.uid);
+                const isActive = u.isActive !== false && admRecord?.isActive !== false;
+                const isPrimaryOwner = u.email.toLowerCase() === OWNER_ADMIN_EMAIL.toLowerCase();
+                const isLockedFromEditor =
+                  isPrimaryOwner ||
+                  u.uid === user?.uid ||
+                  (effRole === 'super_admin' && !isSuperAdmin);
+
+                return (
+                  <div
+                    key={u.id}
+                    className="py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs sm:text-sm"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {u.photoURL ? (
+                        <img
+                          src={u.photoURL}
+                          alt={u.displayName}
+                          referrerPolicy="no-referrer"
+                          className="w-9 h-9 rounded-full object-cover border border-[#E5E5EA] shrink-0"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-[#F5F5F7] border border-[#E5E5EA] flex items-center justify-center shrink-0">
+                          <UserCheck className="w-4 h-4 text-[#0066CC]" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold text-[#1D1D1F] truncate">{u.displayName}</span>
+                          <span
+                            className={`text-[11px] font-bold uppercase tracking-wide ${
+                              effRole === 'super_admin'
+                                ? 'text-purple-700'
+                                : effRole === 'admin'
+                                  ? 'text-[#0066CC]'
+                                  : effRole === 'technician'
+                                    ? 'text-teal-700'
+                                    : 'text-[#6E6E73]'
+                            }`}
+                          >
+                            {effRole.replace('_', ' ')}
+                          </span>
+                          {!isActive && (
+                            <span className="text-[11px] font-bold text-red-600">· Deactivated</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-[#6E6E73] font-mono truncate">
+                          {u.email} · {u.uid}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      {isLockedFromEditor ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#6E6E73] px-3 py-1.5 rounded-lg bg-[#F5F5F7] border border-[#E5E5EA]">
+                          <Lock className="w-3 h-3" />
+                          {isPrimaryOwner
+                            ? 'Primary Super Admin (Locked)'
+                            : u.uid === user?.uid
+                              ? 'Active Session'
+                              : 'Super Admin Protected'}
+                        </span>
+                      ) : (
+                        <>
+                          <select
+                            disabled={!canManageUsers || updatingRoleUid === u.uid}
+                            value={effRole}
+                            onChange={(e) => handleRoleChange(u, e.target.value as UserRole)}
+                            className="px-3 py-1.5 rounded-lg border border-[#D2D2D7] bg-white text-xs font-semibold text-[#1D1D1F]"
+                          >
+                            <option value="user">Customer (User Mode)</option>
+                            <option value="technician">Technician</option>
+                            <option value="staff">Front-Desk Staff</option>
+                            <option value="admin">Admin</option>
+                            {isSuperAdmin && <option value="super_admin">Super Admin</option>}
+                          </select>
+
+                          {(effRole === 'admin' || effRole === 'staff') && isSuperAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => openPermissionsModal(u)}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#D2D2D7] bg-[#F5F5F7] hover:bg-[#E5E5EA] text-xs font-semibold text-[#1D1D1F]"
+                            >
+                              <KeyRound className="w-3.5 h-3.5 text-[#0066CC]" />
+                              Permissions
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            disabled={!canManageUsers || updatingRoleUid === u.uid}
+                            onClick={() => handleToggleActive(u)}
+                            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                              isActive
+                                ? 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                                : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                            }`}
+                          >
+                            {isActive ? (
+                              <>
+                                <UserX className="w-3.5 h-3.5" /> Deactivate
+                              </>
+                            ) : (
+                              <>
+                                <UserCheck className="w-3.5 h-3.5" /> Activate
+                              </>
+                            )}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1">Display Name *</label>
-              <input
-                type="text"
-                required
-                value={newAdminName}
-                onChange={(e) => setNewAdminName(e.target.value)}
-                placeholder="Technician Name"
-                className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] text-xs"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1">Role</label>
-              <select
-                value={newAdminRole}
-                onChange={(e) => setNewAdminRole(e.target.value as 'admin' | 'super_admin')}
-                className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] text-xs bg-white"
-              >
-                <option value="admin">Admin</option>
-                <option value="super_admin">Super Admin</option>
-              </select>
-            </div>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-lg bg-[#0066CC] hover:bg-[#0052A3] text-white text-xs font-semibold"
-            >
-              Add Admin
-            </button>
-          </form>
+          )}
         </div>
+
+        {/* Authorized Staff Registry + Direct Assignment */}
+        <div className="p-6 rounded-xl border border-[#E5E5EA] bg-white space-y-5">
+          <h3 className="text-base font-bold text-[#1D1D1F]">
+            Authorized Staff &amp; Administrators ({adminUsers.length})
+          </h3>
+          <div className="divide-y divide-[#E5E5EA] border-y border-[#E5E5EA]">
+            {adminUsers.map((adm) => {
+              const cannotTouch =
+                adm.uid === user?.uid ||
+                adm.email.toLowerCase() === OWNER_ADMIN_EMAIL.toLowerCase() ||
+                (adm.role === 'super_admin' && !isSuperAdmin);
+              return (
+                <div key={adm.id} className="py-3 flex flex-wrap items-center justify-between gap-4 text-xs sm:text-sm">
+                  <div>
+                    <p className="font-semibold text-[#1D1D1F]">
+                      {adm.displayName} · <span className="text-[#0066CC] uppercase">{adm.role.replace('_', ' ')}</span>
+                      {adm.isActive === false && <span className="text-red-600 ml-2">(Deactivated)</span>}
+                    </p>
+                    <p className="text-xs text-[#6E6E73] font-mono">
+                      {adm.email} · {adm.uid}
+                    </p>
+                  </div>
+                  {!cannotTouch && canManageUsers && (
+                    <button
+                      type="button"
+                      onClick={() => setRevokeAdminTarget({ uid: adm.uid, email: adm.email })}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-red-600 hover:bg-red-50"
+                      aria-label={`Remove ${adm.email}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Revoke Staff Access
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {canManageUsers && (
+            <form onSubmit={handleAddAdmin} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2 items-end">
+              <div>
+                <label className="block text-xs font-semibold mb-1">Firebase UID *</label>
+                <input
+                  type="text"
+                  required
+                  value={newAdminUid}
+                  onChange={(e) => setNewAdminUid(e.target.value)}
+                  placeholder="User UID"
+                  className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] text-xs font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1">Google Email *</label>
+                <input
+                  type="email"
+                  required
+                  value={newAdminEmail}
+                  onChange={(e) => setNewAdminEmail(e.target.value)}
+                  placeholder="staff@refixpro.in"
+                  className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1">Display Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={newAdminName}
+                  onChange={(e) => setNewAdminName(e.target.value)}
+                  placeholder="Staff Name"
+                  className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1">Staff Role</label>
+                <select
+                  value={newAdminRole}
+                  onChange={(e) =>
+                    setNewAdminRole(e.target.value as 'technician' | 'staff' | 'admin' | 'super_admin')
+                  }
+                  className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] text-xs bg-white"
+                >
+                  <option value="staff">Front-Desk Staff</option>
+                  <option value="technician">Technician</option>
+                  <option value="admin">Admin</option>
+                  {isSuperAdmin && <option value="super_admin">Super Admin</option>}
+                </select>
+              </div>
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-lg bg-[#0066CC] hover:bg-[#0052A3] text-white text-xs font-semibold"
+              >
+                Assign Role
+              </button>
+            </form>
+          )}
+        </div>
+
+        {/* Permissions Configuration Modal (Super Admin) */}
+        {permModalUser && (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl border border-[#E5E5EA] max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+              <div className="sticky top-0 bg-white border-b border-[#E5E5EA] px-6 py-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-[#0066CC]">Super Admin Permission Matrix</p>
+                  <h3 className="text-base font-bold text-[#1D1D1F]">
+                    Configure Access for {permModalUser.displayName}
+                  </h3>
+                  <p className="text-xs text-[#6E6E73] font-mono">{permModalUser.email}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPermModalUser(null)}
+                  className="p-2 rounded-lg border border-[#D2D2D7] text-[#424245] hover:bg-[#F5F5F7]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-[#1D1D1F] uppercase tracking-wide">
+                      Allowed ERP &amp; Website Modules
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setModalPerms((p) => ({ ...p, modules: ALL_ADMIN_MODULES.map((m) => m.id) }))
+                        }
+                        className="text-[11px] font-semibold text-[#0066CC] hover:underline"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModalPerms(DEFAULT_ADMIN_PERMISSIONS)}
+                        className="text-[11px] font-semibold text-[#6E6E73] hover:underline"
+                      >
+                        Reset Default
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {ALL_ADMIN_MODULES.map((mod) => (
+                      <label
+                        key={mod.id}
+                        className="flex items-center gap-2.5 p-2.5 rounded-lg border border-[#E5E5EA] bg-[#F5F5F7]/60 text-xs font-medium cursor-pointer hover:bg-[#F5F5F7]"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={modalPerms.modules.includes(mod.id)}
+                          onChange={() => toggleModulePerm(mod.id)}
+                        />
+                        <span>{mod.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2.5 pt-3 border-t border-[#E5E5EA]">
+                  <p className="text-xs font-bold text-[#1D1D1F] uppercase tracking-wide">
+                    Allowed Operation Actions
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {ALL_PERMISSION_ACTIONS.map((act) => (
+                      <label
+                        key={act.id}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[#E5E5EA] bg-white text-xs font-semibold cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={modalPerms.actions.includes(act.id)}
+                          onChange={() => toggleActionPerm(act.id)}
+                        />
+                        <span>{act.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-[#E5E5EA]">
+                  <button
+                    type="button"
+                    onClick={() => setPermModalUser(null)}
+                    className="px-4 py-2 rounded-lg border border-[#D2D2D7] text-xs font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={savingPerms}
+                    onClick={handleSavePermissions}
+                    className="px-5 py-2 rounded-lg bg-[#0066CC] hover:bg-[#0052A3] disabled:opacity-60 text-white text-xs font-semibold"
+                  >
+                    {savingPerms ? 'Saving...' : 'Save Module Permissions'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <ConfirmDialog
+          open={Boolean(revokeAdminTarget)}
+          title="Revoke Staff Access?"
+          description={`Revoking staff access for ${revokeAdminTarget?.email || ''} will immediately switch their account back to standard Customer Mode.`}
+          confirmLabel="Revoke Access"
+          destructive
+          onCancel={() => setRevokeAdminTarget(null)}
+          onConfirm={async () => {
+            if (!revokeAdminTarget) return;
+            try {
+              await removeAdminUser(revokeAdminTarget.uid);
+              onNotify('success', 'Staff access revoked; account switched to User Mode.');
+            } catch (err) {
+              console.error(err);
+              onNotify('error', err instanceof Error ? err.message : 'Unable to revoke staff access.');
+            } finally {
+              setRevokeAdminTarget(null);
+            }
+          }}
+        />
       </div>
     );
   }
@@ -182,7 +683,7 @@ export function AdminSettingsAndUsersTab({
       onNotify('success', 'Website settings updated across all pages.');
     } catch (err) {
       console.error(err);
-      onNotify('error', 'Failed to save website settings.');
+      onNotify('error', extractReadableError(err, 'Failed to save website settings.'));
     } finally {
       setSaving(false);
     }
@@ -214,7 +715,38 @@ export function AdminSettingsAndUsersTab({
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setSettingsSubTab('website')}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${
+            settingsSubTab === 'website'
+              ? 'bg-[#1D1D1F] text-white'
+              : 'bg-white border border-[#E5E5EA] text-[#424245] hover:text-[#1D1D1F]'
+          }`}
+        >
+          <Settings className="w-3.5 h-3.5" />
+          Website, Hero &amp; Gallery
+        </button>
+        <button
+          type="button"
+          onClick={() => setSettingsSubTab('erp')}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${
+            settingsSubTab === 'erp'
+              ? 'bg-[#1D1D1F] text-white'
+              : 'bg-white border border-[#E5E5EA] text-[#424245] hover:text-[#1D1D1F]'
+          }`}
+        >
+          <Database className="w-3.5 h-3.5" />
+          ERP System Config, Health &amp; Backup
+        </button>
+      </div>
+
+      {settingsSubTab === 'erp' ? (
+        <AdminAuditBackupTab mode="system" onNotify={onNotify} />
+      ) : (
+        <div className="space-y-8">
       <form onSubmit={handleSaveSettings} className="p-6 rounded-xl border border-[#E5E5EA] bg-white space-y-5">
         <div className="flex items-center justify-between border-b border-[#E5E5EA] pb-3">
           <h2 className="text-lg font-bold text-[#1D1D1F]">Business & Website Settings</h2>
@@ -711,11 +1243,8 @@ export function AdminSettingsAndUsersTab({
                 </div>
                 <button
                   type="button"
-                  onClick={async () => {
-                    await deleteGalleryImage(g.id);
-                    onNotify('success', 'Gallery image deleted.');
-                  }}
-                  className="text-red-600 p-1"
+                  onClick={() => setDeleteGalleryTarget({ id: g.id, title: g.title })}
+                  className="text-red-600 p-1 hover:bg-red-50 rounded-lg"
                   aria-label={`Delete ${g.title}`}
                 >
                   <Trash2 className="w-4 h-4" />
@@ -779,6 +1308,29 @@ export function AdminSettingsAndUsersTab({
           </div>
         </form>
       </div>
+
+      <ConfirmDialog
+        open={Boolean(deleteGalleryTarget)}
+        title="Delete Gallery Image?"
+        description={`Remove "${deleteGalleryTarget?.title || ''}" from the About & Workstation gallery?`}
+        confirmLabel="Delete Image"
+        destructive
+        onCancel={() => setDeleteGalleryTarget(null)}
+        onConfirm={async () => {
+          if (!deleteGalleryTarget) return;
+          try {
+            await deleteGalleryImage(deleteGalleryTarget.id);
+            onNotify('success', 'Gallery image deleted.');
+          } catch (err) {
+            console.error(err);
+            onNotify('error', 'Failed to delete gallery image.');
+          } finally {
+            setDeleteGalleryTarget(null);
+          }
+        }}
+      />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, ExternalLink, Mail, Star } from 'lucide-react';
+import { ArrowRight, ExternalLink, Mail, RefreshCw, Star } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useSeoMeta } from '../utils/seo';
 import { WriteReviewForm } from '../components/WriteReviewForm';
+import { Button, EmptyState } from '../components/ui/DesignSystem';
 import {
   FadeInSection,
   HeroReveal,
@@ -18,7 +19,7 @@ export function ReviewsPage({
 }: {
   onNotify: (type: 'success' | 'error', message: string) => void;
 }) {
-  const { reviews, settings, googleLiveProfile } = useApp();
+  const { reviews, settings, googleLiveProfile, triggerGoogleProfileSync } = useApp();
   const [filter, setFilter] = useState<ReviewFilter>('All');
 
   useSeoMeta({
@@ -36,6 +37,8 @@ export function ReviewsPage({
     googleLiveProfile.googleMapsUri ||
     settings.googleReviewsUrl ||
     'https://www.google.com/maps/search/?api=1&query=SCF-92%2CSECTOR-14+MAIN+MARKET%2C+Gurugram%2C+Haryana+122007';
+  const googleWriteUrl =
+    googleLiveProfile.writeAReviewUri || googleProfileUrl;
 
   const stats = useMemo(() => {
     const total = reviews.length;
@@ -84,13 +87,24 @@ export function ReviewsPage({
             </div>
 
             <div className="flex flex-wrap gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  triggerGoogleProfileSync();
+                  onNotify('success', 'Syncing live reviews from Refix Pro Google Business Profile...');
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#D2D2D7] bg-white hover:bg-[#F5F5F7] text-sm font-semibold text-[#1D1D1F] transition-colors whitespace-nowrap"
+              >
+                <RefreshCw className={`w-4 h-4 text-[#0066CC] ${googleLiveProfile.loading ? 'animate-spin' : ''}`} />
+                Sync Google Reviews
+              </button>
               <a
-                href={googleProfileUrl}
+                href={googleWriteUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[#D2D2D7] bg-white hover:bg-[#F5F5F7] text-sm font-semibold text-[#1D1D1F] transition-colors whitespace-nowrap"
               >
-                Google Business Profile
+                Review on Google Profile
                 <ExternalLink className="w-4 h-4 text-[#0066CC]" />
               </a>
               <Link
@@ -271,7 +285,7 @@ export function ReviewsPage({
                     key={tab}
                     type="button"
                     onClick={() => setFilter(tab)}
-                    className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                    className={`min-h-[40px] px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
                       filter === tab
                         ? 'bg-[#1D1D1F] text-white'
                         : 'bg-white border border-[#E5E5EA] text-[#424245] hover:text-[#1D1D1F]'
@@ -285,16 +299,15 @@ export function ReviewsPage({
           </FadeInSection>
 
           {filteredReviews.length === 0 ? (
-            <div className="p-12 rounded-2xl bg-white border border-[#E5E5EA] text-center space-y-2">
-              <p className="text-base font-bold text-[#1D1D1F]">No reviews match this filter yet.</p>
-              <button
-                type="button"
-                onClick={() => setFilter('All')}
-                className="text-xs font-semibold text-[#0066CC] hover:underline"
-              >
-                Show All Reviews
-              </button>
-            </div>
+            <EmptyState
+              title="No reviews match this filter yet"
+              description="Reset the filter to view all verified Google Business Profile and website customer reviews."
+              action={
+                <Button type="button" variant="primary" size="md" onClick={() => setFilter('All')}>
+                  Show All Reviews
+                </Button>
+              }
+            />
           ) : (
             <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredReviews.map((rev) => (

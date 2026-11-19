@@ -1,11 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import {
-  GoogleAuthProvider,
-  User,
-  onAuthStateChanged,
-  signInWithPopup,
-  signOut,
-} from 'firebase/auth';
+import type { User } from 'firebase/auth';
 import {
   collection,
   deleteDoc,
@@ -20,14 +14,14 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import {
-  ADMIN_BOOTSTRAP_EMAILS,
+  OWNER_ADMIN_EMAIL,
   OperationType,
   auth,
   computeTrackingId,
   db,
   handleFirestoreError,
-  testFirestoreConnection,
 } from '../lib/firebase';
+import { useAuth } from './AuthContext';
 import {
   DEFAULT_BLOG_CATEGORIES,
   DEFAULT_BLOG_POSTS,
@@ -37,7 +31,10 @@ import {
 } from '../data/seedBlogsAndSettings';
 import { DEFAULT_MACBOOK_MODELS, DEFAULT_SERVICES } from '../data/seedServicesAndModels';
 import type {
+  AdminModuleKey,
+  AdminPermissions,
   AdminUser,
+  AppUserProfile,
   BlogCategory,
   BlogPost,
   ContactMessage,
@@ -46,11 +43,17 @@ import type {
   MacBookModelItem,
   PaymentMethodType,
   PaymentSubmission,
+  PermissionAction,
   RepairEnquiry,
   RepairTrackingRecord,
   ReviewItem,
   ServiceItem,
+  UserRole,
   WebsiteSettings,
+} from '../types';
+import {
+  DEFAULT_ADMIN_PERMISSIONS,
+  DEFAULT_STAFF_PERMISSIONS,
 } from '../types';
 
 export const DEFAULT_GOOGLE_LIVE_PROFILE: GoogleLiveProfile = {
@@ -62,6 +65,7 @@ export const DEFAULT_GOOGLE_LIVE_PROFILE: GoogleLiveProfile = {
   rating: null,
   userRatingCount: null,
   googleMapsUri: null,
+  writeAReviewUri: null,
   reviews: [],
 };
 
@@ -110,10 +114,20 @@ interface AppContextValue {
   galleryImages: GalleryImageItem[];
   publicLoading: boolean;
 
-  // Auth & Admin / Customer
+  // Auth & 5-Role RBAC (Super Admin, Admin, Staff, Technician, Customer)
   user: User | null;
   authReady: boolean;
+  isSuperAdmin: boolean;
   isAdmin: boolean;
+  isFrontDeskStaff: boolean;
+  isTechnician: boolean;
+  isStaff: boolean;
+  userRole: UserRole;
+  userProfile: AppUserProfile | null;
+  currentPermissions: AdminPermissions | null;
+  hasPermission: (module: AdminModuleKey, action?: PermissionAction) => boolean;
+  refreshUserRole: () => Promise<void>;
+  updateOwnProfile: (patch: { displayName: string; phone?: string; whatsapp?: string; address?: string }) => Promise<void>;
   adminLogin: () => Promise<void>;
   adminLogout: () => Promise<void>;
   customerLogin: () => Promise<void>;
@@ -133,6 +147,7 @@ interface AppContextValue {
   paymentSubmissions: PaymentSubmission[];
   contactMessages: ContactMessage[];
   adminUsers: AdminUser[];
+  registeredUsers: AppUserProfile[];
   adminLoading: boolean;
   hasFirestoreSeed: boolean;
   refreshPublicData: () => Promise<void>;
@@ -151,8 +166,9 @@ interface AppContextValue {
   deleteEnquiry: (id: string) => Promise<void>;
   verifyPaymentSubmission: (
     paymentId: string,
-    decision: 'Verified Paid' | 'Rejected',
-    notes?: string
+    decision: 'Verified Paid' | 'Rejected' | 'Refunded',
+    notes?: string,
+    refundAmount?: number
   ) => Promise<void>;
   deletePaymentSubmission: (paymentId: string) => Promise<void>;
   saveService: (item: Omit<ServiceItem, 'updatedAt'>) => Promise<void>;
@@ -168,11 +184,18 @@ interface AppContextValue {
   deleteContactMessage: (id: string) => Promise<void>;
   saveReview: (item: Omit<ReviewItem, 'createdAt'>) => Promise<void>;
   deleteReview: (id: string) => Promise<void>;
+  importGoogleReviewsToSite: () => Promise<number>;
   saveGalleryImage: (item: Omit<GalleryImageItem, 'createdAt'>) => Promise<void>;
   deleteGalleryImage: (id: string) => Promise<void>;
   saveWebsiteSettings: (next: WebsiteSettings) => Promise<void>;
   saveAdminUser: (adminUser: Omit<AdminUser, 'id' | 'createdAt'>) => Promise<void>;
   removeAdminUser: (uid: string) => Promise<void>;
+  setUserRole: (
+    uid: string,
+    nextRole: UserRole,
+    profileHint?: Partial<AppUserProfile> & { permissions?: AdminPermissions; isActive?: boolean }
+  ) => Promise<void>;
+  toggleUserActive: (uid: string, nextActive: boolean) => Promise<void>;
 
   // Live Google Business Profile sync (transient Places SDK state)
   googleLiveProfile: GoogleLiveProfile;
@@ -263,6 +286,17 @@ function mergeWebsiteSettings(raw?: Partial<WebsiteSettings>): WebsiteSettings {
       blog: { ...def.pageContent.blog, ...(srcPage.blog || {}) },
       contact: { ...def.pageContent.contact, ...(srcPage.contact || {}) },
     },
+    erpConfig: {
+      currency: 'INR',
+      timezone: 'Asia/Kolkata',
+      dateFormat: 'DD MMM YYYY',
+      invoicePrefix: 'INV-RP',
+      jobCardPrefix: 'JC-RP',
+      defaultTaxRate: 18,
+      whatsappAlertsEnabled: true,
+      emailAlertsEnabled: true,
+      ...(src.erpConfig || {}),
+    },
   };
 }
 
@@ -277,9 +311,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [publicLoading, setPublicLoading] = useState(true);
   const [hasFirestoreSeed, setHasFirestoreSeed] = useState(false);
 
-  const [user, setUser] = useState<User | null>(null);
-  const [authReady, setAuthReady] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const {
+    user,
+    authReady,
+    isSuperAdmin,
+    isAdmin,
+    isFrontDeskStaff,
+    isTechnician,
+    isStaff,
+    userRole,
+    userProfile,
+    currentPermissions,
+    hasPermission,
+    refreshUserRole,
+    updateOwnProfile,
+    signInWithGoogle,
+    logout: authLogout,
+  } = useAuth();
 
   const [adminServices, setAdminServices] = useState<ServiceItem[]>(DEFAULT_SERVICES);
   const [adminModels, setAdminModels] = useState<MacBookModelItem[]>(DEFAULT_MACBOOK_MODELS);
@@ -289,6 +337,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [paymentSubmissions, setPaymentSubmissions] = useState<PaymentSubmission[]>([]);
   const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [registeredUsers, setRegisteredUsers] = useState<AppUserProfile[]>([]);
   const [adminLoading, setAdminLoading] = useState(false);
   const [customerEnquiries, setCustomerEnquiries] = useState<RepairEnquiry[]>([]);
   const [customerMessages, setCustomerMessages] = useState<ContactMessage[]>([]);
@@ -381,10 +430,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshAdminData = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!isAdmin && !isFrontDeskStaff) return;
     setAdminLoading(true);
     try {
-      const [enqSnap, paySnap, msgSnap, srvSnap, mdlSnap, postSnap, revSnap, admSnap] = await Promise.all([
+      if (isFrontDeskStaff && !isAdmin) {
+        const [enqSnap, paySnap, msgSnap, revSnap] = await Promise.all([
+          getDocs(collection(db, 'repairEnquiries')).catch(() => null),
+          getDocs(collection(db, 'paymentSubmissions')).catch(() => null),
+          getDocs(collection(db, 'contactMessages')).catch(() => null),
+          getDocs(collection(db, 'reviews')).catch(() => null),
+        ]);
+        if (enqSnap) {
+          const enqList = enqSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<RepairEnquiry, 'id'>) }));
+          enqList.sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
+          setEnquiries(enqList);
+        }
+        if (paySnap) {
+          const payList = paySnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PaymentSubmission, 'id'>) }));
+          payList.sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
+          setPaymentSubmissions(payList);
+        }
+        if (msgSnap) {
+          const msgList = msgSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ContactMessage, 'id'>) }));
+          msgList.sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
+          setContactMessages(msgList);
+        }
+        if (revSnap) {
+          const revList = revSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ReviewItem, 'id'>) }));
+          revList.sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
+          setAdminReviews(revList);
+        }
+        return;
+      }
+
+      const [enqSnap, paySnap, msgSnap, srvSnap, mdlSnap, postSnap, revSnap, admSnap, usrSnap] = await Promise.all([
         getDocs(collection(db, 'repairEnquiries')).catch((e) => handleFirestoreError(e, OperationType.LIST, 'repairEnquiries')),
         getDocs(collection(db, 'paymentSubmissions')).catch((e) => handleFirestoreError(e, OperationType.LIST, 'paymentSubmissions')),
         getDocs(collection(db, 'contactMessages')).catch((e) => handleFirestoreError(e, OperationType.LIST, 'contactMessages')),
@@ -393,6 +472,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         getDocs(collection(db, 'blogPosts')).catch((e) => handleFirestoreError(e, OperationType.LIST, 'blogPosts')),
         getDocs(collection(db, 'reviews')).catch((e) => handleFirestoreError(e, OperationType.LIST, 'reviews')),
         getDocs(collection(db, 'admins')).catch((e) => handleFirestoreError(e, OperationType.LIST, 'admins')),
+        getDocs(collection(db, 'users')).catch(() => null),
       ]);
 
       const enqList = enqSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<RepairEnquiry, 'id'>) }));
@@ -438,10 +518,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       setAdminUsers(admSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AdminUser, 'id'>) })));
+
+      if (usrSnap) {
+        const usrList = usrSnap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<AppUserProfile, 'id'>),
+        }));
+        usrList.sort(
+          (a, b) =>
+            getTimestampMillis(b.lastLoginAt || b.createdAt) -
+            getTimestampMillis(a.lastLoginAt || a.createdAt)
+        );
+        setRegisteredUsers(usrList);
+      }
     } finally {
       setAdminLoading(false);
     }
-  }, [isAdmin]);
+  }, [isAdmin, isFrontDeskStaff]);
 
   const seedCatalogToFirestore = useCallback(async () => {
     if (!isAdmin) return;
@@ -542,47 +635,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [isAdmin, refreshAdminData, refreshPublicData]);
 
   useEffect(() => {
-    testFirestoreConnection();
     refreshPublicData();
   }, [refreshPublicData]);
-
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser && currentUser.emailVerified) {
-        const normalizedEmail = (currentUser.email || '').toLowerCase();
-        if (ADMIN_BOOTSTRAP_EMAILS.includes(normalizedEmail)) {
-          setIsAdmin(true);
-          try {
-            const adminRef = doc(db, 'admins', currentUser.uid);
-            const snap = await getDoc(adminRef);
-            if (!snap.exists()) {
-              await setDoc(adminRef, {
-                uid: currentUser.uid,
-                email: currentUser.email,
-                displayName: currentUser.displayName || 'Refix Pro Owner',
-                role: 'super_admin',
-                createdAt: serverTimestamp(),
-              });
-            }
-          } catch (err) {
-            console.error('Admin bootstrap check:', err);
-          }
-        } else {
-          try {
-            const snap = await getDoc(doc(db, 'admins', currentUser.uid));
-            setIsAdmin(snap.exists());
-          } catch {
-            setIsAdmin(false);
-          }
-        }
-      } else {
-        setIsAdmin(false);
-      }
-      setAuthReady(true);
-    });
-    return () => unsub();
-  }, []);
 
   const refreshCustomerData = useCallback(async () => {
     if (!user) {
@@ -675,38 +729,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [authReady, user, refreshCustomerData]);
 
+  const clearSessionCaches = () => {
+    setRegisteredUsers([]);
+    setEnquiries([]);
+    setPaymentSubmissions([]);
+    setContactMessages([]);
+    setCustomerEnquiries([]);
+    setCustomerMessages([]);
+    setCustomerPayments([]);
+  };
+
   const adminLogin = async () => {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-    await signInWithPopup(auth, provider);
+    await signInWithGoogle();
   };
 
   const adminLogout = async () => {
-    await signOut(auth);
-    setIsAdmin(false);
-    setEnquiries([]);
-    setPaymentSubmissions([]);
-    setContactMessages([]);
-    setCustomerEnquiries([]);
-    setCustomerMessages([]);
-    setCustomerPayments([]);
+    await authLogout();
+    clearSessionCaches();
   };
 
   const customerLogin = async () => {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-    await signInWithPopup(auth, provider);
+    await signInWithGoogle();
   };
 
   const customerLogout = async () => {
-    await signOut(auth);
-    setIsAdmin(false);
-    setEnquiries([]);
-    setPaymentSubmissions([]);
-    setContactMessages([]);
-    setCustomerEnquiries([]);
-    setCustomerMessages([]);
-    setCustomerPayments([]);
+    await authLogout();
+    clearSessionCaches();
   };
 
   const submitRepairEnquiry = async (input: NewRepairEnquiryInput) => {
@@ -764,6 +812,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const batch = writeBatch(db);
       batch.set(doc(db, 'repairEnquiries', enquiryId), payload);
       batch.set(doc(db, 'repairTracking', trackingId), trackingPayload);
+      batch.set(doc(db, 'notifications', makeValidId('notif')), {
+        audience: 'all_admins',
+        title: `New Booking ${enquiryCode}`,
+        message: `${payload.customerName} booked ${payload.macbookModel} · ${payload.serviceName}`,
+        category: 'booking',
+        relatedCode: enquiryCode,
+        isRead: false,
+        createdAt: serverTimestamp(),
+      });
       await batch.commit();
 
       if (user) {
@@ -967,8 +1024,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const verifyPaymentSubmission = async (
     paymentId: string,
-    decision: 'Verified Paid' | 'Rejected',
-    notes?: string
+    decision: 'Verified Paid' | 'Rejected' | 'Refunded',
+    notes?: string,
+    refundAmount?: number
   ) => {
     const submission = paymentSubmissions.find((p) => p.id === paymentId);
     if (!submission) return;
@@ -985,15 +1043,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const batch = writeBatch(db);
       batch.update(doc(db, 'paymentSubmissions', paymentId), {
         status: decision,
-        verifiedAt: decision === 'Verified Paid' ? nowLabel.slice(0, 60) : '',
+        verifiedAt: decision === 'Verified Paid' ? nowLabel.slice(0, 60) : submission.verifiedAt || '',
         notes: (notes ?? submission.notes ?? '').trim().slice(0, 400),
+        ...(decision === 'Refunded' ? { refundAmount: Math.max(0, Number(refundAmount ?? submission.amount) || 0) } : {}),
       });
 
       const matchedEnquiry = enquiries.find(
         (e) => e.enquiryCode.toUpperCase() === submission.enquiryCode.toUpperCase()
       );
       if (matchedEnquiry) {
-        const nextStatus = decision === 'Verified Paid' ? 'Paid' : 'Unpaid';
+        const nextStatus =
+          decision === 'Verified Paid' ? 'Paid' : decision === 'Refunded' ? 'Refunded' : 'Unpaid';
         const trackingId = await computeTrackingId(
           matchedEnquiry.enquiryCode,
           matchedEnquiry.mobile
@@ -1308,6 +1368,53 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const importGoogleReviewsToSite = async (): Promise<number> => {
+    if (!isAdmin || googleLiveProfile.reviews.length === 0) return 0;
+
+    const existingKeys = new Set(
+      (adminReviews.length > 0 ? adminReviews : reviews).map(
+        (r) =>
+          `${r.authorLabel.toLowerCase().trim()}::${r.quote
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 60)}`
+      )
+    );
+
+    const toImport = googleLiveProfile.reviews.filter((gRev) => {
+      const key = `${gRev.authorName.toLowerCase().trim()}::${gRev.text
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 60)}`;
+      return !existingKeys.has(key);
+    });
+
+    if (toImport.length === 0) return 0;
+
+    try {
+      const batch = writeBatch(db);
+      for (const gRev of toImport) {
+        const revId = makeValidId('grev');
+        batch.set(doc(db, 'reviews', revId), {
+          authorLabel: (gRev.authorName || 'Google Reviewer').trim().slice(0, 100),
+          rating: Math.min(5, Math.max(1, Math.round(Number(gRev.rating) || 5))),
+          quote: gRev.text.trim().slice(0, 800),
+          source: 'Google Business Profile',
+          dateLabel: (gRev.relativeTime || 'Google Review').slice(0, 60),
+          isVisible: true,
+          createdAt: serverTimestamp(),
+        });
+      }
+      await batch.commit();
+      await Promise.all([refreshPublicData(), refreshAdminData()]);
+      return toImport.length;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'reviews/google-sync-batch');
+    }
+  };
+
   const saveGalleryImage = async (item: Omit<GalleryImageItem, 'createdAt'>) => {
     const id = item.id || makeValidId('gal');
     const existingImg = galleryImages.find((g) => g.id === id);
@@ -1370,7 +1477,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ? Math.max(0, Math.round(rawCount))
       : def.googleReviewCount;
 
-    const payload = {
+    const payloadBase = {
       businessName: clampStr(merged.businessName, 1, 120, def.businessName),
       tagline: (merged.tagline || '').trim().slice(0, 200),
       phone: clampStr(merged.phone, 5, 30, def.phone),
@@ -1406,9 +1513,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           to: l.to.trim().slice(0, 120),
           visible: l.visible !== false,
         })),
-      footerDescription: (merged.footerDescription || '').trim().slice(0, 500),
+      footerDescription: (merged.footerDescription || '').trim().slice(0, 750),
       footerTagline: (merged.footerTagline || '').trim().slice(0, 200),
-      footerLegalText: (merged.footerLegalText || '').trim().slice(0, 400),
+      footerLegalText: (merged.footerLegalText || '').trim().slice(0, 550),
       footerQuickLinks: (merged.footerQuickLinks || [])
         .filter((l) => l && l.label?.trim() && l.to?.trim())
         .slice(0, 12)
@@ -1435,10 +1542,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       manualUpiId: (merged.manualUpiId || '').trim().slice(0, 160),
       manualUpiQrUrl: (merged.manualUpiQrUrl || '').slice(0, 300000),
       manualBankDetails: (merged.manualBankDetails || '').trim().slice(0, 600),
-      manualPaymentNote: (merged.manualPaymentNote || '').trim().slice(0, 500),
-      seoTitle: (merged.seoTitle || '').trim().slice(0, 120),
-      seoDescription: (merged.seoDescription || '').trim().slice(0, 300),
-      seoKeywords: (merged.seoKeywords || '').trim().slice(0, 600),
+      manualPaymentNote: (merged.manualPaymentNote || '').trim().slice(0, 750),
+      seoTitle: (merged.seoTitle || '').trim().slice(0, 190),
+      seoDescription: (merged.seoDescription || '').trim().slice(0, 450),
+      seoKeywords: (merged.seoKeywords || '').trim().slice(0, 1100),
       serviceAreasText: (merged.serviceAreasText || '').trim().slice(0, 400),
       homeFaqs: (merged.homeFaqs || [])
         .filter((f) => f && f.q?.trim() && f.a?.trim())
@@ -1457,6 +1564,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         blog: sanitizePageObj(merged.pageContent.blog),
         contact: sanitizePageObj(merged.pageContent.contact),
       },
+      erpConfig: JSON.parse(JSON.stringify(merged.erpConfig || {})) as Record<string, unknown>,
+    };
+
+    const estimatedBytes = new TextEncoder().encode(JSON.stringify(payloadBase)).length;
+    if (estimatedBytes > 940000) {
+      throw new Error(
+        `Website settings + uploaded images (${Math.round(estimatedBytes / 1024)} KB) exceed Firestore's 1 MB limit. Replace some embedded images with smaller compressed photos or URLs.`
+      );
+    }
+
+    const payload = {
+      ...payloadBase,
       updatedAt: serverTimestamp(),
     };
     try {
@@ -1467,38 +1586,156 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const saveAdminUser = async (adminUser: Omit<AdminUser, 'id' | 'createdAt'>) => {
-    const uid = adminUser.uid.trim().slice(0, 128);
+  const setUserRole = async (
+    targetUid: string,
+    nextRole: UserRole,
+    profileHint?: Partial<AppUserProfile> & { permissions?: AdminPermissions; isActive?: boolean }
+  ) => {
+    const uid = targetUid.trim().slice(0, 128);
+    if (!uid) return;
+
+    const existingUser = registeredUsers.find((u) => u.uid === uid);
     const existingAdmin = adminUsers.find((a) => a.uid === uid);
+    const email = (
+      profileHint?.email ||
+      existingUser?.email ||
+      existingAdmin?.email ||
+      ''
+    )
+      .trim()
+      .slice(0, 200);
+    const displayName = (
+      profileHint?.displayName ||
+      existingUser?.displayName ||
+      existingAdmin?.displayName ||
+      'Refix Pro User'
+    )
+      .trim()
+      .slice(0, 120);
+
+    if (
+      email.toLowerCase() === OWNER_ADMIN_EMAIL.toLowerCase() ||
+      (existingAdmin?.role === 'super_admin' && !isSuperAdmin)
+    ) {
+      throw new Error('Super Admin privileges cannot be modified or demoted by ordinary administrators.');
+    }
+
+    if (nextRole === 'super_admin' && !isSuperAdmin) {
+      throw new Error('Only Super Admin can assign Super Admin privileges.');
+    }
+
+    if (nextRole === 'user' && uid === auth.currentUser?.uid) {
+      throw new Error('Your active session cannot demote itself to User Mode.');
+    }
+
+    const defaultForRole =
+      nextRole === 'staff' ? DEFAULT_STAFF_PERMISSIONS : DEFAULT_ADMIN_PERMISSIONS;
+    const perms =
+      profileHint?.permissions ??
+      existingAdmin?.permissions ??
+      existingUser?.permissions ??
+      defaultForRole;
+    const activeFlag = profileHint?.isActive ?? existingUser?.isActive ?? true;
+
     try {
-      if (existingAdmin?.createdAt) {
-        await updateDoc(doc(db, 'admins', uid), {
-          email: adminUser.email.trim().slice(0, 200),
-          displayName: adminUser.displayName.trim().slice(0, 120),
-          role: adminUser.role,
+      const userSnap = await getDoc(doc(db, 'users', uid)).catch(() => null);
+      const batch = writeBatch(db);
+      const userRef = doc(db, 'users', uid);
+
+      if (userSnap && userSnap.exists()) {
+        batch.update(userRef, {
+          role: nextRole,
+          isActive: activeFlag,
+          ...(nextRole !== 'user' ? { permissions: perms } : {}),
+          ...(email ? { email } : {}),
+          ...(displayName ? { displayName } : {}),
         });
-      } else {
-        await setDoc(doc(db, 'admins', uid), {
+      } else if (email) {
+        batch.set(userRef, {
           uid,
-          email: adminUser.email.trim().slice(0, 200),
-          displayName: adminUser.displayName.trim().slice(0, 120),
-          role: adminUser.role,
+          email,
+          displayName,
+          photoURL: (profileHint?.photoURL || '').slice(0, 1000),
+          role: nextRole,
+          isActive: activeFlag,
+          ...(nextRole !== 'user' ? { permissions: perms } : {}),
+          createdAt: serverTimestamp(),
+          lastLoginAt: serverTimestamp(),
+        });
+      }
+
+      const adminRef = doc(db, 'admins', uid);
+      if (
+        nextRole === 'super_admin' ||
+        nextRole === 'admin' ||
+        nextRole === 'staff' ||
+        nextRole === 'technician'
+      ) {
+        if (existingAdmin?.createdAt) {
+          batch.update(adminRef, {
+            email,
+            displayName,
+            role: nextRole,
+            isActive: activeFlag,
+            permissions: perms,
+          });
+        } else {
+          batch.set(adminRef, {
+            uid,
+            email: email || `${uid}@refixpro.user`,
+            displayName,
+            role: nextRole,
+            isActive: activeFlag,
+            permissions: perms,
+            createdAt: serverTimestamp(),
+          });
+        }
+      } else {
+        batch.delete(adminRef);
+      }
+
+      if (auth.currentUser) {
+        batch.set(doc(db, 'activityLogs', makeValidId('log')), {
+          actorUid: auth.currentUser.uid,
+          actorEmail: (auth.currentUser.email || 'admin@refixpro.in').slice(0, 200),
+          actorRole: userRole,
+          action: 'ROLE_PERMISSION_UPDATE',
+          targetCollection: 'users',
+          targetId: uid,
+          summary: `Updated ${displayName} (${email}) role to ${nextRole}`,
+          metadata: `active=${activeFlag}`,
           createdAt: serverTimestamp(),
         });
       }
+
+      await batch.commit();
       await refreshAdminData();
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `admins/${uid}`);
+      handleFirestoreError(error, OperationType.WRITE, `users/${uid}`);
     }
   };
 
+  const toggleUserActive = async (targetUid: string, nextActive: boolean) => {
+    const target = registeredUsers.find((u) => u.uid === targetUid);
+    if (!target) return;
+    await setUserRole(targetUid, target.role, {
+      email: target.email,
+      displayName: target.displayName,
+      isActive: nextActive,
+    });
+  };
+
+  const saveAdminUser = async (adminUser: Omit<AdminUser, 'id' | 'createdAt'>) => {
+    await setUserRole(adminUser.uid, adminUser.role, {
+      email: adminUser.email,
+      displayName: adminUser.displayName,
+      permissions: adminUser.permissions,
+      isActive: adminUser.isActive ?? true,
+    });
+  };
+
   const removeAdminUser = async (uid: string) => {
-    try {
-      await deleteDoc(doc(db, 'admins', uid));
-      await refreshAdminData();
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `admins/${uid}`);
-    }
+    await setUserRole(uid, 'user');
   };
 
   return (
@@ -1514,7 +1751,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         publicLoading,
         user,
         authReady,
+        isSuperAdmin,
         isAdmin,
+        isFrontDeskStaff,
+        isTechnician,
+        isStaff,
+        userRole,
+        userProfile,
+        currentPermissions,
+        hasPermission,
+        refreshUserRole,
+        updateOwnProfile,
         adminLogin,
         adminLogout,
         customerLogin,
@@ -1532,6 +1779,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         paymentSubmissions,
         contactMessages,
         adminUsers,
+        registeredUsers,
         adminLoading,
         hasFirestoreSeed,
         refreshPublicData,
@@ -1559,11 +1807,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         deleteContactMessage,
         saveReview,
         deleteReview,
+        importGoogleReviewsToSite,
         saveGalleryImage,
         deleteGalleryImage,
         saveWebsiteSettings,
         saveAdminUser,
         removeAdminUser,
+        setUserRole,
+        toggleUserActive,
         googleLiveProfile,
         setGoogleLiveProfile,
         googleSyncNonce,

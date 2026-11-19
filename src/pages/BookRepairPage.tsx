@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { extractReadableError } from '../lib/firebase';
 import { useSeoMeta } from '../utils/seo';
 import {
   buildTelHref,
@@ -119,7 +120,10 @@ export function BookRepairPage({
       onNotify('success', `Repair request ${result.enquiryCode} submitted successfully.`);
     } catch (error) {
       console.error(error);
-      onNotify('error', 'Unable to submit booking right now. Please try WhatsApp or Call.');
+      onNotify(
+        'error',
+        extractReadableError(error, 'Unable to submit booking right now. Please try WhatsApp or Call.')
+      );
     } finally {
       setSubmitting(false);
     }
@@ -308,7 +312,7 @@ export function BookRepairPage({
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder="Your full name"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] text-sm focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+                className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] text-sm focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
               />
             </div>
 
@@ -323,7 +327,7 @@ export function BookRepairPage({
                 value={mobile}
                 onChange={(e) => setMobile(e.target.value)}
                 placeholder="+91 98XXXXXXXX"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+                className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
               />
             </div>
 
@@ -339,7 +343,7 @@ export function BookRepairPage({
                 value={macbookModel}
                 onChange={(e) => setMacbookModel(e.target.value)}
                 placeholder="e.g. MacBook Air M1 (A2337), MacBook Pro 14 M3, iPad Pro M2, iPhone 15 Pro..."
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] text-sm focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+                className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] text-sm focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
               />
               <datalist id="macbook-model-suggestions">
                 {models.map((m) => (
@@ -389,9 +393,9 @@ export function BookRepairPage({
                         type="button"
                         aria-label="Remove image"
                         onClick={() => setImageUrls((prev) => prev.filter((_, i) => i !== idx))}
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center"
+                        className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/75 text-white flex items-center justify-center"
                       >
-                        <X className="w-3 h-3" />
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   ))}
@@ -409,7 +413,7 @@ export function BookRepairPage({
             <button
               type="submit"
               disabled={submitting}
-              className="px-7 py-3.5 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] disabled:opacity-60 text-white text-sm font-semibold transition-colors whitespace-nowrap"
+              className="min-h-[44px] px-7 py-3.5 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] disabled:opacity-60 text-white text-sm font-semibold transition-colors whitespace-nowrap"
             >
               {submitting ? 'Submitting Repair Request...' : 'Submit Repair Request'}
             </button>

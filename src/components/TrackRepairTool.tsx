@@ -14,10 +14,11 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { normalizeMobileKey } from '../lib/firebase';
+import { extractReadableError, normalizeMobileKey } from '../lib/firebase';
 import type { EnquiryStatus, RepairTrackingRecord } from '../types';
 import { buildTelHref, buildWhatsAppUrl } from '../utils/whatsapp';
 import { RepairPaymentPanel } from './RepairPaymentPanel';
+import { StatusBadge } from './ui/DesignSystem';
 
 const REPAIR_PIPELINE: {
   status: EnquiryStatus;
@@ -111,7 +112,12 @@ export function TrackRepairTool({
       }
     } catch (err) {
       console.error('Track enquiry error:', err);
-      setError('Unable to check repair status right now. Please try again or contact us on WhatsApp.');
+      setError(
+        extractReadableError(
+          err,
+          'Unable to check repair status right now. Please try again or contact us on WhatsApp.'
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -176,7 +182,7 @@ export function TrackRepairTool({
             value={enquiryCode}
             onChange={(e) => setEnquiryCode(e.target.value.toUpperCase())}
             placeholder="e.g. RP-4K9M2AB"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-[#F5F5F7]/40 text-sm font-mono uppercase tracking-wider text-[#1D1D1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0066CC]"
+            className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-[#F5F5F7]/40 text-sm font-mono uppercase tracking-wider text-[#1D1D1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0066CC]"
           />
         </div>
 
@@ -191,7 +197,7 @@ export function TrackRepairTool({
             value={mobile}
             onChange={(e) => setMobile(e.target.value)}
             placeholder="10-digit mobile number"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-[#F5F5F7]/40 text-sm font-mono text-[#1D1D1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0066CC]"
+            className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-[#F5F5F7]/40 text-sm font-mono text-[#1D1D1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0066CC]"
           />
         </div>
 
@@ -199,7 +205,7 @@ export function TrackRepairTool({
           <button
             type="submit"
             disabled={loading}
-            className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] disabled:opacity-60 text-white text-sm font-semibold transition-colors whitespace-nowrap"
+            className="w-full min-h-[44px] inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] disabled:opacity-60 text-white text-sm font-semibold transition-colors whitespace-nowrap"
           >
             <Search className="w-4 h-4" />
             {loading ? 'Checking...' : 'Check Status'}
@@ -229,7 +235,7 @@ export function TrackRepairTool({
             href={statusWhatsAppUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white text-xs font-semibold whitespace-nowrap shrink-0"
+            className="inline-flex items-center justify-center gap-1.5 min-h-[40px] px-4 py-2 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white text-xs font-semibold whitespace-nowrap shrink-0"
           >
             <MessageCircle className="w-3.5 h-3.5" />
             Ask on WhatsApp
@@ -248,24 +254,14 @@ export function TrackRepairTool({
               </p>
             </div>
             <div>
-              <p className="text-xs text-[#6E6E73]">MacBook & Service</p>
+              <p className="text-xs text-[#6E6E73]">MacBook &amp; Service</p>
               <p className="text-sm font-bold text-[#1D1D1F] mt-0.5">{result.macbookModel}</p>
               <p className="text-xs text-[#424245]">{result.serviceName}</p>
             </div>
             <div>
-              <p className="text-xs text-[#6E6E73]">Current Status</p>
-              <p
-                className={`text-sm font-bold mt-0.5 ${
-                  isCancelled
-                    ? 'text-red-600'
-                    : result.status === 'Completed' || result.status === 'Ready for Delivery'
-                      ? 'text-emerald-700'
-                      : 'text-[#0066CC]'
-                }`}
-              >
-                {result.status}
-              </p>
-              <p className="text-[11px] text-[#6E6E73] mt-0.5">
+              <p className="text-xs text-[#6E6E73] mb-1">Current Status</p>
+              <StatusBadge label={result.status} />
+              <p className="text-[11px] text-[#6E6E73] mt-1.5">
                 Updated: {formatUpdatedAt(result.updatedAt)}
               </p>
             </div>
@@ -362,21 +358,11 @@ export function TrackRepairTool({
           {!isCancelled && (
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA] flex flex-wrap items-center justify-between gap-3">
-                <div className="space-y-0.5 text-xs">
-                  <p className="text-[#6E6E73]">
-                    Repair Billing ·{' '}
-                    <span
-                      className={`font-semibold ${
-                        result.paymentStatus === 'Paid'
-                          ? 'text-emerald-700'
-                          : result.paymentStatus === 'Pending Verification'
-                            ? 'text-amber-700'
-                            : 'text-[#1D1D1F]'
-                      }`}
-                    >
-                      {result.paymentStatus || 'Unpaid'}
-                    </span>
-                  </p>
+                <div className="space-y-1 text-xs">
+                  <div className="flex items-center gap-2 text-[#6E6E73]">
+                    <span>Repair Billing</span>
+                    <StatusBadge label={result.paymentStatus || 'Unpaid'} />
+                  </div>
                   <p className="text-sm font-mono font-bold text-[#1D1D1F] tabular-nums">
                     {result.payableAmount && result.payableAmount > 0
                       ? `Payable Invoice: ₹${result.payableAmount.toLocaleString('en-IN')}`
@@ -389,14 +375,14 @@ export function TrackRepairTool({
                     <button
                       type="button"
                       onClick={() => setShowPaymentBox((prev) => !prev)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] text-white text-xs font-semibold whitespace-nowrap"
+                      className="min-h-[40px] inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] text-white text-xs font-semibold whitespace-nowrap"
                     >
                       <CreditCard className="w-3.5 h-3.5" />
                       {showPaymentBox ? 'Hide Payment Options' : 'Pay Now (Razorpay / UPI)'}
                     </button>
                     <Link
                       to={`/pay?code=${encodeURIComponent(result.enquiryCode)}&mobile=${encodeURIComponent(mobile)}`}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#D2D2D7] bg-white hover:bg-[#F5F5F7] text-[#1D1D1F] text-xs font-semibold whitespace-nowrap"
+                      className="min-h-[40px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#D2D2D7] bg-white hover:bg-[#F5F5F7] text-[#1D1D1F] text-xs font-semibold whitespace-nowrap"
                     >
                       Open Payment Page
                     </Link>

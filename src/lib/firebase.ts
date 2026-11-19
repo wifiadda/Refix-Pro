@@ -59,6 +59,35 @@ export function handleFirestoreError(
   throw new Error(JSON.stringify(errInfo));
 }
 
+export function extractReadableError(error: unknown, fallback: string): string {
+  if (!error) return fallback;
+  const raw = error instanceof Error ? error.message : String(error);
+  try {
+    const parsed = JSON.parse(raw) as Partial<FirestoreErrorInfo>;
+    const inner = parsed.error || raw;
+    const email = parsed.authInfo?.email;
+    if (/permission|insufficient/i.test(inner)) {
+      return `Permission denied${email ? ` for ${email}` : ''}. Ensure your account holds Admin / Super Admin role.`;
+    }
+    if (/exceeds|1048|too large|size limit/i.test(inner)) {
+      return 'Document or embedded images exceed Firestore 1 MB limit. Compress images or use image URLs.';
+    }
+    if (/unsupported field value:\s*undefined/i.test(inner)) {
+      return 'Invalid empty field detected while saving. Please review required fields and retry.';
+    }
+    if (/offline|unavailable/i.test(inner)) {
+      return 'Network or Firestore service unavailable. Check connection and retry.';
+    }
+    if (inner && inner.length < 180) return inner;
+  } catch {
+    if (/permission|insufficient/i.test(raw)) {
+      return 'Permission denied. Sign in with an authorized Admin / Super Admin account.';
+    }
+    if (raw && raw.length < 180) return raw;
+  }
+  return fallback;
+}
+
 export async function testFirestoreConnection(): Promise<void> {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
@@ -70,7 +99,7 @@ export async function testFirestoreConnection(): Promise<void> {
 }
 
 export const OWNER_ADMIN_EMAIL = 'refixpro.in@gmail.com';
-export const ADMIN_BOOTSTRAP_EMAILS = ['refixpro.in@gmail.com', 'wifiadda76@gmail.com'];
+export const ADMIN_BOOTSTRAP_EMAILS = [OWNER_ADMIN_EMAIL];
 
 export function normalizeMobileKey(mobile: string): string {
   const digits = mobile.replace(/\D/g, '');

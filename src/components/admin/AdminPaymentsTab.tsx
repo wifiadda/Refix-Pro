@@ -4,6 +4,7 @@ import {
   CreditCard,
   Landmark,
   QrCode,
+  RotateCcw,
   Save,
   ShieldCheck,
   Smartphone,
@@ -12,7 +13,9 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { extractReadableError } from '../../lib/firebase';
 import { compressImageToDataUrl } from '../../utils/whatsapp';
+import { ConfirmDialog } from '../ConfirmDialog';
 import type { WebsiteSettings } from '../../types';
 
 export function AdminPaymentsTab({
@@ -26,11 +29,16 @@ export function AdminPaymentsTab({
     paymentSubmissions,
     verifyPaymentSubmission,
     deletePaymentSubmission,
+    hasPermission,
   } = useApp();
 
   const [form, setForm] = useState<WebsiteSettings>({ ...settings });
   const [savingConfig, setSavingConfig] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [refundTarget, setRefundTarget] = useState<{ id: string; code: string; amount: number } | null>(null);
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundNote, setRefundNote] = useState('');
 
   useEffect(() => {
     setForm({ ...settings });
@@ -44,7 +52,7 @@ export function AdminPaymentsTab({
       onNotify('success', 'Razorpay & Manual UPI payment configuration saved live.');
     } catch (err) {
       console.error('Save payment config error:', err);
-      onNotify('error', 'Failed to save payment configuration.');
+      onNotify('error', extractReadableError(err, 'Failed to save payment configuration.'));
     } finally {
       setSavingConfig(false);
     }
@@ -52,16 +60,20 @@ export function AdminPaymentsTab({
 
   const handleDecision = async (
     paymentId: string,
-    decision: 'Verified Paid' | 'Rejected'
+    decision: 'Verified Paid' | 'Rejected' | 'Refunded',
+    notes?: string,
+    refAmt?: number
   ) => {
     setBusyId(paymentId);
     try {
-      await verifyPaymentSubmission(paymentId, decision);
+      await verifyPaymentSubmission(paymentId, decision, notes, refAmt);
       onNotify(
         'success',
         decision === 'Verified Paid'
           ? 'Payment verified & enquiry marked Paid.'
-          : 'Payment confirmation rejected.'
+          : decision === 'Refunded'
+            ? 'Payment marked Refunded and enquiry updated.'
+            : 'Payment confirmation rejected.'
       );
     } catch (err) {
       console.error('Verify payment error:', err);
@@ -353,7 +365,22 @@ export function AdminPaymentsTab({
                       )}
                     </td>
                     <td className="py-3 px-4 text-right whitespace-nowrap space-x-1.5">
-                      {pay.status !== 'Verified Paid' && (
+                      {pay.status === 'Verified Paid' && hasPermission('payments', 'approve') && (
+                        <button
+                          type="button"
+                          disabled={busyId === pay.id}
+                          onClick={() => {
+                            setRefundTarget({ id: pay.id, code: pay.enquiryCode, amount: pay.amount });
+                            setRefundAmount(String(pay.amount));
+                            setRefundNote('Customer refund issued');
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-50 text-xs font-semibold"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          Refund
+                        </button>
+                      )}
+                      {pay.status !== 'Verified Paid' && pay.status !== 'Refunded' && (
                         <button
                           type="button"
                           disabled={busyId === pay.id}
@@ -364,7 +391,7 @@ export function AdminPaymentsTab({
                           Verify Paid
                         </button>
                       )}
-                      {pay.status !== 'Rejected' && (
+                      {pay.status !== 'Rejected' && pay.status !== 'Refunded' && (
                         <button
                           type="button"
                           disabled={busyId === pay.id}
@@ -375,17 +402,16 @@ export function AdminPaymentsTab({
                           Reject
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await deletePaymentSubmission(pay.id);
-                          onNotify('success', 'Payment record removed.');
-                        }}
-                        aria-label={`Delete payment ${pay.id}`}
-                        className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 align-middle"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {hasPermission('payments', 'delete') && (
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTargetId(pay.id)}
+                          aria-label={`Delete payment ${pay.id}`}
+                          className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 align-middle"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -394,6 +420,72 @@ export function AdminPaymentsTab({
           </table>
         </div>
       </div>
+
+      {refundTarget && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              await handleDecision(
+                refundTarget.id,
+                'Refunded',
+                refundNote,
+                Math.max(0, Number(refundAmount) || refundTarget.amount)
+              );
+              setRefundTarget(null);
+            }}
+            className="bg-white rounded-2xl border border-[#E5E5EA] max-w-md w-full p-6 space-y-4 text-xs"
+          >
+            <h3 className="text-base font-bold text-[#1D1D1F]">
+              Issue Refund for {refundTarget.code}
+            </h3>
+            <div>
+              <label className="block font-semibold mb-1">Refund Amount (₹)</label>
+              <input
+                type="number"
+                min={1}
+                max={refundTarget.amount}
+                required
+                value={refundAmount}
+                onChange={(e) => setRefundAmount(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold mb-1">Refund Reference / Reason</label>
+              <input
+                type="text"
+                required
+                value={refundNote}
+                onChange={(e) => setRefundNote(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7]"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setRefundTarget(null)} className="px-4 py-2 rounded-lg border border-[#D2D2D7]">
+                Cancel
+              </button>
+              <button type="submit" className="px-4 py-2 rounded-lg bg-amber-600 text-white font-semibold">
+                Confirm Refund
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={Boolean(deleteTargetId)}
+        title="Delete Payment Submission?"
+        description="Removes this payment confirmation record permanently."
+        confirmLabel="Delete"
+        onCancel={() => setDeleteTargetId(null)}
+        onConfirm={async () => {
+          if (!deleteTargetId) return;
+          await deletePaymentSubmission(deleteTargetId);
+          setDeleteTargetId(null);
+          onNotify('success', 'Payment record removed.');
+        }}
+      />
     </div>
   );
 }

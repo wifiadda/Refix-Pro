@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { CheckCircle2, Send, Star } from 'lucide-react';
+import { CheckCircle2, Copy, ExternalLink, Send, Star } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { extractReadableError } from '../lib/firebase';
+import { buildGoogleWriteReviewUrl } from './LiveGoogleReviewsSync';
 
 const RATING_LABELS: Record<number, string> = {
   1: 'Needs Improvement',
@@ -19,7 +21,7 @@ export function WriteReviewForm({
   onSubmitted?: () => void;
   compact?: boolean;
 }) {
-  const { submitPublicReview } = useApp();
+  const { submitPublicReview, googleLiveProfile, settings } = useApp();
 
   const [name, setName] = useState('');
   const [device, setDevice] = useState('');
@@ -28,10 +30,29 @@ export function WriteReviewForm({
   const [quote, setQuote] = useState('');
   const [honeypot, setHoneypot] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [submittedQuote, setSubmittedQuote] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const activeStars = hoveredRating ?? rating;
+  const googleWriteUrl =
+    googleLiveProfile.writeAReviewUri ||
+    buildGoogleWriteReviewUrl(
+      googleLiveProfile.placeId || settings.googlePlaceId,
+      googleLiveProfile.googleMapsUri || settings.googleReviewsUrl
+    );
+
+  const handleCopyAndOpenGoogle = async () => {
+    if (submittedQuote) {
+      try {
+        await navigator.clipboard.writeText(submittedQuote);
+        setCopied(true);
+        onNotify?.('success', 'Review text copied — paste it in the Google Business tab!');
+      } catch {
+        setCopied(false);
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,16 +83,23 @@ export function WriteReviewForm({
         rating,
         quote: cleanQuote,
       });
-      setSubmitted(true);
+      setSubmittedQuote(cleanQuote);
+      setCopied(false);
       setName('');
       setDevice('');
       setRating(5);
       setQuote('');
-      onNotify?.('success', 'Thank you! Your review is now live on Refix Pro.');
+      onNotify?.(
+        'success',
+        'Review published on Refix Pro! You can also cross-post it to Google Business Profile below.'
+      );
       onSubmitted?.();
     } catch (err) {
       console.error('Review submit error:', err);
-      const msg = 'Unable to publish your review right now. Please try again shortly.';
+      const msg = extractReadableError(
+        err,
+        'Unable to publish your review right now. Please try again shortly.'
+      );
       setErrorMsg(msg);
       onNotify?.('error', msg);
     } finally {
@@ -87,12 +115,14 @@ export function WriteReviewForm({
       } space-y-5 shadow-[0_12px_32px_-20px_rgba(0,0,0,0.08)]`}
     >
       <div className="space-y-1">
-        <p className="text-xs font-semibold text-[#0066CC]">Customer Feedback</p>
+        <p className="text-xs font-semibold text-[#0066CC]">
+          Connected to Refix Pro Google Business Profile ({settings.email || 'refixpro.in@gmail.com'})
+        </p>
         <h3 className="text-lg sm:text-xl font-bold text-[#1D1D1F]">
           Share Your Refix Pro Experience
         </h3>
         <p className="text-xs sm:text-sm text-[#6E6E73]">
-          Your review appears immediately on our website to help other Apple users in Gurugram.
+          Your review publishes live on Refix Pro right away, with a one-click option to also post on our Google Business listing.
         </p>
       </div>
 
@@ -109,10 +139,43 @@ export function WriteReviewForm({
         />
       </div>
 
-      {submitted && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 text-xs sm:text-sm text-emerald-900">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>Thank you! Your review has been published and is visible to everyone.</span>
+      {submittedQuote !== null && (
+        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-3 text-xs sm:text-sm text-emerald-950">
+          <div className="flex items-start gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">
+                Published live on Refix Pro!
+              </p>
+              <p className="text-xs text-emerald-900 mt-0.5">
+                Google requires reviewers to confirm posts from their Google account. Copy your text and click below to mirror it directly onto Refix Pro&apos;s Google Business Profile:
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 pl-6">
+            <button
+              type="button"
+              onClick={handleCopyAndOpenGoogle}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 bg-white hover:bg-emerald-100 text-xs font-semibold text-emerald-950 whitespace-nowrap"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              {copied ? 'Copied Review Text' : 'Copy My Review'}
+            </button>
+            <a
+              href={googleWriteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
+                if (submittedQuote) {
+                  void navigator.clipboard?.writeText(submittedQuote).catch(() => {});
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#0066CC] hover:bg-[#0052A3] text-white text-xs font-semibold whitespace-nowrap"
+            >
+              Post Same Review on Google Profile
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
         </div>
       )}
 
@@ -171,7 +234,7 @@ export function WriteReviewForm({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Rohan Verma"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-white text-sm text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+            className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-white text-sm text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
           />
         </div>
 
@@ -186,7 +249,7 @@ export function WriteReviewForm({
             value={device}
             onChange={(e) => setDevice(e.target.value)}
             placeholder="e.g. MacBook Pro M2 Screen"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-white text-sm text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+            className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-white text-sm text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
           />
         </div>
       </div>
@@ -211,14 +274,26 @@ export function WriteReviewForm({
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] disabled:opacity-60 text-white text-sm font-semibold transition-colors whitespace-nowrap"
-      >
-        <Send className="w-4 h-4" />
-        {submitting ? 'Publishing Review...' : 'Publish Review'}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] disabled:opacity-60 text-white text-sm font-semibold transition-colors whitespace-nowrap"
+        >
+          <Send className="w-4 h-4" />
+          {submitting ? 'Publishing Review...' : 'Publish Review on Website'}
+        </button>
+
+        <a
+          href={googleWriteUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl border border-[#D2D2D7] bg-white hover:bg-[#F5F5F7] text-xs font-semibold text-[#1D1D1F] transition-colors whitespace-nowrap"
+        >
+          Write Directly on Google Business
+          <ExternalLink className="w-3.5 h-3.5 text-[#0066CC]" />
+        </a>
+      </div>
     </form>
   );
 }

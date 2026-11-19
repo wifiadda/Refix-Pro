@@ -19,6 +19,7 @@ import {
   Navigation,
   PenSquare,
   Phone,
+  RefreshCw,
   ShieldCheck,
   Star,
   Wrench,
@@ -190,7 +191,7 @@ export function HomePage({
   quotaExceeded?: boolean;
   onNotify?: (type: 'success' | 'error', message: string) => void;
 }) {
-  const { settings, models, reviews, blogPosts, googleLiveProfile } = useApp();
+  const { settings, models, reviews, blogPosts, googleLiveProfile, triggerGoogleProfileSync } = useApp();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [activeModelTab, setActiveModelTab] = useState<HomeModelTab>('All Devices');
   const [showReviewComposer, setShowReviewComposer] = useState(false);
@@ -312,6 +313,8 @@ export function HomePage({
     googleLiveProfile.googleMapsUri ||
     settings.googleReviewsUrl ||
     'https://www.google.com/maps/search/?api=1&query=Refix+Pro+SCF-92+Sector+14+Main+Market+Gurugram';
+  const googleWriteReviewUrl =
+    googleLiveProfile.writeAReviewUri || googleProfileUrl;
 
   useSeoMeta({
     title: settings.seoTitle || 'Refix Pro – Best MacBook Repair in Gurugram | SCF-92 Sector 14',
@@ -900,20 +903,31 @@ export function HomePage({
                 <PenSquare className="w-4 h-4" />
                 {showReviewComposer ? 'Close Review Form' : 'Write a Review'}
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  triggerGoogleProfileSync();
+                  onNotify?.('success', 'Syncing latest reviews from Google Business Profile...');
+                }}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-[#D2D2D7] hover:bg-[#E5E5EA]/40 text-sm font-semibold text-[#1D1D1F] transition-colors whitespace-nowrap"
+              >
+                <RefreshCw className={`w-4 h-4 text-[#0066CC] ${googleLiveProfile.loading ? 'animate-spin' : ''}`} />
+                Sync Google Reviews
+              </button>
               <Link
                 to="/reviews"
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-[#D2D2D7] hover:bg-[#E5E5EA]/40 text-sm font-semibold text-[#1D1D1F] transition-colors whitespace-nowrap"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-[#D2D2D7] hover:bg-[#E5E5EA]/40 text-sm font-semibold text-[#1D1D1F] transition-colors whitespace-nowrap"
               >
-                View All Reviews
+                All Reviews
                 <ArrowRight className="w-4 h-4 text-[#0066CC]" />
               </Link>
               <a
-                href={googleProfileUrl}
+                href={googleWriteReviewUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-[#D2D2D7] bg-white hover:bg-[#E5E5EA]/40 text-sm font-semibold text-[#1D1D1F] transition-colors whitespace-nowrap"
               >
-                Google Profile
+                Post on Google
                 <ExternalLink className="w-4 h-4 text-[#0066CC]" />
               </a>
             </div>
@@ -931,7 +945,6 @@ export function HomePage({
                 <WriteReviewForm
                   compact
                   onNotify={onNotify}
-                  onSubmitted={() => setShowReviewComposer(false)}
                 />
               </motion.div>
             )}

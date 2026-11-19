@@ -10,9 +10,10 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useSeoMeta } from '../utils/seo';
-import { normalizeMobileKey } from '../lib/firebase';
+import { extractReadableError, normalizeMobileKey } from '../lib/firebase';
 import { RepairPaymentPanel } from '../components/RepairPaymentPanel';
 import { FadeInSection, HeroReveal } from '../components/MotionPrimitives';
+import { StatusBadge } from '../components/ui/DesignSystem';
 import type { RepairTrackingRecord } from '../types';
 
 export function PayRepairPage({
@@ -67,7 +68,7 @@ export function PayRepairPage({
       }
     } catch (err) {
       console.error('Pay lookup error:', err);
-      setLookupError('Unable to fetch repair details right now.');
+      setLookupError(extractReadableError(err, 'Unable to fetch repair details right now.'));
     } finally {
       setLookingUp(false);
     }
@@ -117,7 +118,7 @@ export function PayRepairPage({
                     value={lookupCode}
                     onChange={(e) => setLookupCode(e.target.value.toUpperCase())}
                     placeholder="e.g. RP-4K9M2AB"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-[#F5F5F7]/40 text-sm font-mono uppercase focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0066CC]"
+                    className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-[#F5F5F7]/40 text-sm font-mono uppercase focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0066CC]"
                   />
                 </div>
                 <div>
@@ -129,13 +130,13 @@ export function PayRepairPage({
                     value={lookupMobile}
                     onChange={(e) => setLookupMobile(e.target.value)}
                     placeholder="10-digit mobile number"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-[#F5F5F7]/40 text-sm font-mono focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0066CC]"
+                    className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-[#F5F5F7]/40 text-sm font-mono focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0066CC]"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={lookingUp}
-                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#1D1D1F] hover:bg-black disabled:opacity-60 text-white text-sm font-semibold transition-colors"
+                  className="w-full min-h-[44px] inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#1D1D1F] hover:bg-black disabled:opacity-60 text-white text-sm font-semibold transition-colors"
                 >
                   <Search className="w-4 h-4" />
                   {lookingUp ? 'Fetching Invoice...' : 'Load My Repair Bill'}
@@ -151,9 +152,9 @@ export function PayRepairPage({
 
               {record && (
                 <div className="p-4 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA] space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="font-mono font-bold text-[#0066CC]">{record.enquiryCode}</span>
-                    <span className="font-semibold text-[#1D1D1F]">{record.status}</span>
+                    <StatusBadge label={record.status} />
                   </div>
                   <p className="font-semibold text-[#1D1D1F]">{record.macbookModel}</p>
                   <p className="text-[#424245]">{record.serviceName}</p>

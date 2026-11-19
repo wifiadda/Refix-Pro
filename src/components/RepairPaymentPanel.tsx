@@ -11,6 +11,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { extractReadableError } from '../lib/firebase';
 import type { PaymentStatus } from '../types';
 import { openRazorpayCheckout } from '../utils/razorpay';
 
@@ -102,7 +103,11 @@ export function RepairPaymentPanel({
     }
 
     if (!hasRazorpayKey && hasRazorpayLink) {
-      window.open(settings.razorpayPaymentLinkUrl.trim(), '_blank', 'noopener,noreferrer');
+      const linkEl = document.createElement('a');
+      linkEl.href = settings.razorpayPaymentLinkUrl.trim();
+      linkEl.target = '_blank';
+      linkEl.rel = 'noopener noreferrer';
+      linkEl.click();
       return;
     }
 
@@ -202,7 +207,12 @@ export function RepairPaymentPanel({
       );
     } catch (err) {
       console.error('Manual payment submit failed:', err);
-      onError?.('Could not submit your payment reference. Please check your details and try again.');
+      onError?.(
+        extractReadableError(
+          err,
+          'Could not submit your payment reference. Please check your details and try again.'
+        )
+      );
     } finally {
       setSubmitting(false);
     }
@@ -301,7 +311,7 @@ export function RepairPaymentPanel({
             value={nameInput}
             onChange={(e) => setNameInput(e.target.value)}
             placeholder="Your full name"
-            className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs sm:text-sm text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+            className="w-full min-h-[42px] px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs sm:text-sm text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
           />
         </div>
         <div>
@@ -313,7 +323,7 @@ export function RepairPaymentPanel({
             value={mobileInput}
             onChange={(e) => setMobileInput(e.target.value)}
             placeholder="10-digit mobile"
-            className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs sm:text-sm font-mono text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+            className="w-full min-h-[42px] px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs sm:text-sm font-mono text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
           />
         </div>
         <div>
@@ -325,7 +335,7 @@ export function RepairPaymentPanel({
             value={codeInput}
             onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
             placeholder="RP-XXXXXX"
-            className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs sm:text-sm font-mono uppercase text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+            className="w-full min-h-[42px] px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs sm:text-sm font-mono uppercase text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
           />
         </div>
         <div>
@@ -340,7 +350,7 @@ export function RepairPaymentPanel({
             value={amountInput}
             onChange={(e) => setAmountInput(e.target.value)}
             placeholder="e.g. 4500"
-            className={`w-full px-3 py-2 rounded-lg border border-[#D2D2D7] text-xs sm:text-sm font-mono font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-[#0066CC] ${
+            className={`w-full min-h-[42px] px-3 py-2 rounded-lg border border-[#D2D2D7] text-xs sm:text-sm font-mono font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-[#0066CC] ${
               !allowCustomAmount && defaultAmount > 0
                 ? 'bg-[#F5F5F7] text-[#1D1D1F]'
                 : 'bg-white text-[#1D1D1F]'
@@ -491,7 +501,7 @@ export function RepairPaymentPanel({
                   value={utrInput}
                   onChange={(e) => setUtrInput(e.target.value)}
                   placeholder="Enter 12-digit UTR or Razorpay Payment ID"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-[#F5F5F7]/40 text-sm font-mono text-[#1D1D1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0066CC]"
+                  className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-[#F5F5F7]/40 text-sm font-mono text-[#1D1D1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0066CC]"
                 />
               </div>
 
@@ -504,14 +514,14 @@ export function RepairPaymentPanel({
                   value={notesInput}
                   onChange={(e) => setNotesInput(e.target.value)}
                   placeholder="e.g. Paid via Google Pay after screen replacement"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-[#F5F5F7]/40 text-sm text-[#1D1D1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0066CC]"
+                  className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-[#F5F5F7]/40 text-sm text-[#1D1D1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0066CC]"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] disabled:opacity-60 text-white text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap"
+                className="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] disabled:opacity-60 text-white text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 {submitting ? 'Submitting Confirmation...' : 'Submit Payment Confirmation'}

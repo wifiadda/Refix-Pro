@@ -1,9 +1,12 @@
-import { useState } from 'react';
-import { Edit3, Plus, Trash2, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { BookOpen, Edit3, Plus, Search, Trash2, X } from 'lucide-react';
 import { slugify, useApp } from '../../context/AppContext';
+import { extractReadableError } from '../../lib/firebase';
 import { BlogFaq, BlogPost } from '../../types';
 import { compressImageToDataUrl } from '../../utils/whatsapp';
 import { IMG_MICROSCOPE } from '../../data/seedServicesAndModels';
+import { ConfirmDialog } from '../ConfirmDialog';
+import { EmptyState, StatusBadge } from '../ui/DesignSystem';
 
 export function AdminBlogTab({
   onNotify,
@@ -22,13 +25,29 @@ export function AdminBlogTab({
 
   const postsList = adminBlogPosts.length > 0 ? adminBlogPosts : blogPosts;
 
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft' | 'scheduled'>('all');
   const [editingPost, setEditingPost] = useState<Omit<BlogPost, 'createdAt' | 'updatedAt'> | null>(null);
   const [isNewPost, setIsNewPost] = useState(false);
   const [tagsInput, setTagsInput] = useState('');
   const [faqs, setFaqs] = useState<BlogFaq[]>([]);
   const [saving, setSaving] = useState(false);
+  const [deletePostTarget, setDeletePostTarget] = useState<BlogPost | null>(null);
 
   const [newCatName, setNewCatName] = useState('');
+
+  const filteredPosts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return postsList.filter((p) => {
+      const stOk = statusFilter === 'all' || p.status === statusFilter;
+      const qOk =
+        !q ||
+        p.title.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q) ||
+        p.slug.toLowerCase().includes(q);
+      return stOk && qOk;
+    });
+  }, [postsList, search, statusFilter]);
 
   const openNewPost = () => {
     setIsNewPost(true);
@@ -78,8 +97,7 @@ export function AdminBlogTab({
       onNotify('success', `Saved article "${editingPost.title}".`);
       setEditingPost(null);
     } catch (err) {
-      console.error(err);
-      onNotify('error', 'Failed to save blog post.');
+      onNotify('error', extractReadableError(err, 'Failed to save blog post.'));
     } finally {
       setSaving(false);
     }
@@ -98,8 +116,7 @@ export function AdminBlogTab({
       setNewCatName('');
       onNotify('success', 'Blog category added.');
     } catch (err) {
-      console.error(err);
-      onNotify('error', 'Failed to add category.');
+      onNotify('error', extractReadableError(err, 'Failed to add category.'));
     }
   };
 
@@ -148,8 +165,33 @@ export function AdminBlogTab({
 
       {/* Blog Posts Table */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-[#1D1D1F]">Blog Articles ({postsList.length})</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2 flex-1">
+            <h2 className="text-lg font-bold text-[#1D1D1F] mr-2">
+              Blog Articles ({filteredPosts.length})
+            </h2>
+            <div className="relative w-full sm:w-56">
+              <Search className="w-4 h-4 text-[#6E6E73] absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search title, category, slug..."
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs sm:text-sm"
+              />
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'published' | 'draft' | 'scheduled')}
+              aria-label="Filter articles by status"
+              className="px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs sm:text-sm"
+            >
+              <option value="all">All Statuses</option>
+              <option value="published">Published</option>
+              <option value="draft">Draft</option>
+              <option value="scheduled">Scheduled</option>
+            </select>
+          </div>
           <button
             type="button"
             onClick={openNewPost}
@@ -160,53 +202,63 @@ export function AdminBlogTab({
           </button>
         </div>
 
-        <div className="rounded-xl border border-[#E5E5EA] bg-white overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-[#E5E5EA] bg-[#F5F5F7] text-xs font-semibold text-[#424245]">
-                <th className="py-3 px-4">Title</th>
-                <th className="py-3 px-4">Category</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Publish Date</th>
-                <th className="py-3 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E5E5EA] text-xs sm:text-sm">
-              {postsList.map((p) => (
-                <tr key={p.id} className="hover:bg-[#F5F5F7]/60">
-                  <td className="py-3 px-4">
-                    <p className="font-semibold text-[#1D1D1F]">{p.title}</p>
-                    <p className="text-xs font-mono text-[#6E6E73]">/{p.slug}</p>
-                  </td>
-                  <td className="py-3 px-4 text-[#424245]">{p.category}</td>
-                  <td className="py-3 px-4 capitalize font-medium">{p.status}</td>
-                  <td className="py-3 px-4 font-mono tabular-nums text-xs">{p.publishedAt}</td>
-                  <td className="py-3 px-4 text-right space-x-2 whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => openEditPost(p)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#D2D2D7] text-xs font-semibold hover:bg-[#F5F5F7]"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await deleteBlogPost(p.id);
-                        onNotify('success', 'Article deleted.');
-                      }}
-                      className="p-1.5 rounded-lg text-red-600 hover:bg-red-50"
-                      aria-label={`Delete ${p.title}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
+        {filteredPosts.length === 0 ? (
+          <EmptyState
+            title="No blog articles match your filter"
+            description="Write repair guides to boost local MacBook repair SEO in Gurugram."
+            icon={<BookOpen className="w-5 h-5" />}
+          />
+        ) : (
+          <div className="rounded-xl border border-[#E5E5EA] bg-white overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-[#E5E5EA] bg-[#F5F5F7] text-xs font-semibold text-[#424245]">
+                  <th className="py-3 px-4">Title</th>
+                  <th className="py-3 px-4">Category</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Publish Date</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-[#E5E5EA] text-xs sm:text-sm">
+                {filteredPosts.map((p) => (
+                  <tr key={p.id} className="hover:bg-[#F5F5F7]/60">
+                    <td className="py-3 px-4">
+                      <p className="font-semibold text-[#1D1D1F]">{p.title}</p>
+                      <p className="text-xs font-mono text-[#6E6E73]">/{p.slug}</p>
+                    </td>
+                    <td className="py-3 px-4 text-[#424245]">{p.category}</td>
+                    <td className="py-3 px-4 capitalize">
+                      <StatusBadge
+                        label={p.status}
+                        tone={p.status === 'published' ? 'success' : p.status === 'scheduled' ? 'info' : 'neutral'}
+                      />
+                    </td>
+                    <td className="py-3 px-4 font-mono tabular-nums text-xs">{p.publishedAt}</td>
+                    <td className="py-3 px-4 text-right space-x-2 whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => openEditPost(p)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#D2D2D7] text-xs font-semibold hover:bg-[#F5F5F7]"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeletePostTarget(p)}
+                        className="p-1.5 rounded-lg text-red-600 hover:bg-red-50"
+                        aria-label={`Delete ${p.title}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Blog Editor Modal */}
@@ -436,6 +488,24 @@ export function AdminBlogTab({
           </form>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(deletePostTarget)}
+        title={`Delete Article "${deletePostTarget?.title}"?`}
+        description="Permanently removes this blog post from Firestore."
+        confirmLabel="Delete Article"
+        onCancel={() => setDeletePostTarget(null)}
+        onConfirm={async () => {
+          if (!deletePostTarget) return;
+          try {
+            await deleteBlogPost(deletePostTarget.id);
+            setDeletePostTarget(null);
+            onNotify('success', 'Article deleted.');
+          } catch (err) {
+            onNotify('error', extractReadableError(err, 'Failed to delete article.'));
+          }
+        }}
+      />
     </div>
   );
 }

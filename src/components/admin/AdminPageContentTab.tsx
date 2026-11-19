@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, Plus, Save, Trash2, Upload } from 'lucide-react';
+import { ArrowDown, ArrowUp, Eye, Plus, Save, Trash2, Upload, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { extractReadableError } from '../../lib/firebase';
 import { compressImageToDataUrl } from '../../utils/whatsapp';
 import type { WebsiteSettings } from '../../types';
 
@@ -40,6 +41,7 @@ export function AdminPageContentTab({
   const [form, setForm] = useState<WebsiteSettings>(settings);
   const [activeSection, setActiveSection] = useState<CmsSection>('header');
   const [saving, setSaving] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     setForm(settings);
@@ -53,7 +55,7 @@ export function AdminPageContentTab({
       onNotify('success', 'Header, footer & page content saved live.');
     } catch (err) {
       console.error(err);
-      onNotify('error', 'Failed to save page layout customization.');
+      onNotify('error', extractReadableError(err, 'Failed to save page layout customization.'));
     } finally {
       setSaving(false);
     }
@@ -95,14 +97,24 @@ export function AdminPageContentTab({
             Customize navigation items, CTA buttons, footer columns, Gurugram local SEO keywords, FAQs, and copy for every page.
           </p>
         </div>
-        <button
-          type="submit"
-          disabled={saving}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0066CC] hover:bg-[#0052A3] disabled:opacity-60 text-white text-xs font-semibold whitespace-nowrap shrink-0"
-        >
-          <Save className="w-4 h-4" />
-          {saving ? 'Saving Changes...' : 'Save All Layout Changes'}
-        </button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#D2D2D7] bg-white hover:bg-[#F5F5F7] text-[#1D1D1F] text-xs font-semibold whitespace-nowrap"
+          >
+            <Eye className="w-4 h-4 text-[#0066CC]" />
+            Preview Changes
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0066CC] hover:bg-[#0052A3] disabled:opacity-60 text-white text-xs font-semibold whitespace-nowrap"
+          >
+            <Save className="w-4 h-4" />
+            {saving ? 'Saving Changes...' : 'Save All Layout Changes'}
+          </button>
+        </div>
       </div>
 
       {/* Section Sub-Tabs */}
@@ -1039,6 +1051,134 @@ export function AdminPageContentTab({
                 onChange={(e) => updatePageField('contact', 'mapHeading', e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-[#D2D2D7] text-sm"
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-[#E5E5EA] max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-[#E5E5EA] px-6 py-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold text-[#0066CC] uppercase tracking-wider">
+                  Live CMS Preview (Unpublished Draft)
+                </p>
+                <h3 className="text-base font-bold text-[#1D1D1F]">
+                  Previewing {CMS_SECTIONS.find((s) => s.id === activeSection)?.label || 'Website'} &amp; Navigation
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={async () => {
+                    setSaving(true);
+                    try {
+                      await saveWebsiteSettings(form);
+                      onNotify('success', 'Header, footer & page content published live.');
+                      setPreviewOpen(false);
+                    } catch (err) {
+                      console.error(err);
+                      onNotify('error', 'Failed to publish changes.');
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0066CC] hover:bg-[#0052A3] disabled:opacity-60 text-white text-xs font-semibold"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {saving ? 'Publishing...' : 'Confirm & Publish Live'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewOpen(false)}
+                  className="p-2 rounded-lg border border-[#D2D2D7] text-[#424245] hover:bg-[#F5F5F7]"
+                  aria-label="Close preview"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6 bg-[#F5F5F7]">
+              {/* Simulated Header */}
+              <div className="rounded-xl border border-[#E5E5EA] bg-white p-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="font-bold text-sm text-[#1D1D1F]">{form.businessName}</div>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-[#424245]">
+                  {form.navLinks
+                    .filter((n) => n.visible !== false)
+                    .map((n, i) => (
+                      <span key={i} className="font-medium">
+                        {n.label}
+                      </span>
+                    ))}
+                </div>
+                <span className="px-3 py-1.5 rounded-lg bg-[#0066CC] text-white text-xs font-semibold">
+                  {form.headerCtaText || 'Book a Repair'}
+                </span>
+              </div>
+
+              {/* Active Page Copy Preview */}
+              <div className="rounded-xl border border-[#E5E5EA] bg-white p-6 space-y-4">
+                {activeSection === 'home' || activeSection === 'header' || activeSection === 'footer' || activeSection === 'seo' ? (
+                  <>
+                    <p className="text-xs font-semibold text-[#0066CC]">{form.pageContent.home.heroEyebrow}</p>
+                    <h4 className="text-2xl font-bold text-[#1D1D1F]">{form.heroHeadline}</h4>
+                    <p className="text-sm text-[#424245]">{form.heroSubheadline}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-[#E5E5EA] text-xs">
+                      <div>
+                        <p className="font-semibold text-[#6E6E73]">Services Heading</p>
+                        <p className="font-bold text-[#1D1D1F]">{form.pageContent.home.servicesHeading}</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-[#6E6E73]">Repair Process Heading</p>
+                        <p className="font-bold text-[#1D1D1F]">{form.pageContent.home.processHeading}</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-[#6E6E73]">Bottom CTA Headline</p>
+                        <p className="font-bold text-[#1D1D1F]">{form.pageContent.home.finalCtaHeadline}</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-[#6E6E73]">Primary SEO Title</p>
+                        <p className="font-bold text-[#1D1D1F]">{form.seoTitle}</p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs font-semibold text-[#0066CC] uppercase">{activeSection} Page Preview</p>
+                    <h4 className="text-2xl font-bold text-[#1D1D1F]">
+                      {form.pageContent[activeSection].headline}
+                    </h4>
+                    <p className="text-sm text-[#424245]">
+                      {form.pageContent[activeSection].subheadline}
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {/* Simulated Footer */}
+              <div className="rounded-xl bg-[#0B172A] text-white p-5 space-y-3 text-xs">
+                <div className="flex flex-wrap justify-between gap-4">
+                  <div className="max-w-sm space-y-1">
+                    <p className="font-bold text-sm">{form.businessName}</p>
+                    <p className="text-slate-300">{form.footerTagline}</p>
+                    <p className="text-slate-400">{form.footerDescription}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold mb-1.5 text-slate-200">Quick Links</p>
+                    <div className="flex flex-wrap gap-2 text-slate-300">
+                      {form.footerQuickLinks.slice(0, 6).map((l, i) => (
+                        <span key={i}>{l.label}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 pt-2 border-t border-white/10">
+                  {form.footerLegalText}
+                </p>
+              </div>
             </div>
           </div>
         </div>

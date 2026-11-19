@@ -4,6 +4,7 @@ import { ArrowRight, Search } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useSeoMeta } from '../utils/seo';
 import { SafeImage } from '../components/SafeImage';
+import { Button, EmptyState } from '../components/ui/DesignSystem';
 import {
   HeroReveal,
   StaggerCard,
@@ -149,25 +150,29 @@ export function BlogPage() {
                 }}
                 placeholder="Search articles..."
                 aria-label="Search blog articles"
-                className="w-full pl-9 pr-3 py-2 rounded-lg border border-[#D2D2D7] text-sm focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+                className="w-full min-h-[42px] pl-9 pr-3 py-2 rounded-lg border border-[#D2D2D7] text-sm focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
               />
             </div>
           </div>
 
           {paginatedPosts.length === 0 ? (
-            <div className="py-12 text-center border border-[#E5E5EA] rounded-2xl bg-[#F5F5F7]">
-              <p className="text-base font-semibold text-[#1D1D1F]">No matching articles found.</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  setSelectedCategory('All');
-                }}
-                className="mt-3 px-4 py-2 rounded-lg bg-[#0066CC] text-white text-xs font-semibold"
-              >
-                Reset Filters
-              </button>
-            </div>
+            <EmptyState
+              title="No matching articles found"
+              description="Try clearing your search term or selecting All categories."
+              action={
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedCategory('All');
+                  }}
+                >
+                  Reset Filters
+                </Button>
+              }
+            />
           ) : (
             <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {paginatedPosts.map((post) => (
@@ -218,7 +223,7 @@ export function BlogPage() {
                     key={pageNum}
                     type="button"
                     onClick={() => setCurrentPage(pageNum)}
-                    className={`w-9 h-9 rounded-lg text-xs font-semibold tabular-nums transition-colors ${
+                    className={`w-10 h-10 rounded-lg text-xs font-semibold tabular-nums transition-colors ${
                       safePage === pageNum
                         ? 'bg-[#0066CC] text-white'
                         : 'bg-[#F5F5F7] text-[#1D1D1F] hover:bg-[#E5E5EA]'

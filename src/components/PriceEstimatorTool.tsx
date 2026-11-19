@@ -497,10 +497,10 @@ export function PriceEstimatorTool() {
             Starting Low to Full Repair · SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007
           </p>
           <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1D1D1F] mt-1">
-            Apple Repair Price Estimator (Min to High)
+            MacBook &amp; Apple Repair Price Estimator
           </h3>
           <p className="text-xs sm:text-sm text-[#424245] mt-1">
-            Models and issues are arranged from lowest starting cost to highest repair tier for full transparency.
+            Select your MacBook model and service type to see an approximate cost range (arranged from minimum to higher repair tiers).
           </p>
         </div>
         <div className="inline-flex items-center gap-2 text-xs font-semibold text-[#1D1D1F] shrink-0">
@@ -514,7 +514,7 @@ export function PriceEstimatorTool() {
         <div className="lg:col-span-6 space-y-5">
           <div>
             <span className="block text-xs font-semibold text-[#1D1D1F] mb-2">
-              1. Select Apple Device Type
+              1. Select Device Line
             </span>
             <div className="grid grid-cols-3 gap-2">
               {DEVICE_TABS.map((tab) => {
@@ -525,7 +525,7 @@ export function PriceEstimatorTool() {
                     key={tab.id}
                     type="button"
                     onClick={() => handleDeviceSwitch(tab.id)}
-                    className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-colors whitespace-nowrap ${
+                    className={`min-h-[44px] flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-colors whitespace-nowrap ${
                       active
                         ? 'bg-[#1D1D1F] text-white border-[#1D1D1F]'
                         : 'bg-[#F5F5F7] text-[#424245] border-[#E5E5EA] hover:text-[#1D1D1F]'
@@ -541,13 +541,13 @@ export function PriceEstimatorTool() {
 
           <div>
             <label htmlFor="estimator-model" className="block text-xs font-semibold text-[#1D1D1F] mb-2">
-              2. Select Original Model (Lowest Cost Tier First)
+              2. Select {deviceType === 'macbook' ? 'MacBook Model' : deviceType === 'ipad' ? 'iPad Model' : 'iPhone Model'}
             </label>
             <select
               id="estimator-model"
               value={selectedModel.id}
               onChange={(e) => setSelectedModelId(e.target.value)}
-              className="w-full px-3.5 py-3 rounded-xl border border-[#D2D2D7] bg-white text-sm font-medium text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+              className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-white text-sm font-medium text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
             >
               {modelsForDevice.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -559,20 +559,20 @@ export function PriceEstimatorTool() {
 
           <div>
             <label htmlFor="estimator-issue" className="block text-xs font-semibold text-[#1D1D1F] mb-2">
-              3. Select Repair Issue (Minimum Cost → Maximum Cost)
+              3. Select Service Type (Minimum → Maximum Cost)
             </label>
             <select
               id="estimator-issue"
               value={selectedIssue.id}
               onChange={(e) => setSelectedIssueId(e.target.value)}
-              className="w-full px-3.5 py-3 rounded-xl border border-[#D2D2D7] bg-white text-sm font-medium text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+              className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-white text-sm font-medium text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
             >
               {issuesForDevice.map((iss) => {
                 const startPrice = roundToNearestHundred(iss.baseMin * selectedModel.multiplier);
                 const endPrice = roundToNearestHundred(iss.baseMax * selectedModel.multiplier);
                 return (
                   <option key={iss.id} value={iss.id}>
-                    {formatInr(startPrice)} – {formatInr(endPrice)} · {iss.title}
+                    {formatInr(startPrice)} – {formatInr(endPrice)} · {iss.serviceName} ({iss.title})
                   </option>
                 );
               })}
@@ -582,21 +582,21 @@ export function PriceEstimatorTool() {
           <div className="p-4 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA] flex items-start gap-2.5 text-xs text-[#424245]">
             <Info className="w-4 h-4 text-[#0066CC] shrink-0 mt-0.5" />
             <p className="leading-relaxed">
-              This is an indicative minimum-to-maximum price range. Final repair cost, original/OEM part grade, and component availability are confirmed after physical bench inspection at Refix Pro, SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007.
+              Approximate price range shown immediately for estimation. Final repair cost and original/OEM part availability are confirmed after free physical bench inspection at Refix Pro, SCF-92,SECTOR-14 MAIN MARKET, Gurugram, Haryana 122007.
             </p>
           </div>
         </div>
 
         {/* Right Result Card */}
         <div className="lg:col-span-6 rounded-2xl bg-[#0A0A0C] text-white p-6 sm:p-7 space-y-5">
-          <div className="flex items-start justify-between gap-4 border-b border-[#2C2C2E] pb-5">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-[#2C2C2E] pb-5">
             <div>
-              <p className="text-xs text-[#A1A1A6]">{selectedIssue.category}</p>
+              <p className="text-xs text-[#60A5FA] font-semibold">{selectedIssue.serviceName}</p>
               <p className="text-sm font-semibold text-white mt-0.5">{selectedModel.label}</p>
               <p className="text-[11px] font-mono text-[#A1A1A6] mt-0.5">{selectedModel.exampleModels}</p>
             </div>
-            <div className="text-right shrink-0">
-              <p className="text-[11px] text-[#A1A1A6]">Estimated Range</p>
+            <div className="sm:text-right shrink-0">
+              <p className="text-[11px] text-[#A1A1A6]">Approximate Cost Range</p>
               <p className="text-2xl sm:text-3xl font-bold font-mono tabular-nums text-[#60A5FA] mt-0.5">
                 {estimateLabel}
               </p>
@@ -626,7 +626,7 @@ export function PriceEstimatorTool() {
           <div className="pt-3 flex flex-wrap gap-3">
             <Link
               to={bookUrl}
-              className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] text-white text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap"
+              className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] text-white text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap"
             >
               Book This Repair
               <ArrowRight className="w-4 h-4" />
@@ -635,7 +635,7 @@ export function PriceEstimatorTool() {
               href={waQuoteUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap"
+              className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap"
             >
               <MessageCircle className="w-4 h-4" />
               Exact Quote

@@ -1,8 +1,15 @@
-import { useState } from 'react';
-import { Check, Edit3, ExternalLink, MailOpen, MessageCircle, Plus, RefreshCw, Send, Star, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Check, Edit3, ExternalLink, Mail, MailOpen, MessageCircle, MessageSquare, Plus, RefreshCw, Search, Send, Star, Trash2, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { extractReadableError } from '../../lib/firebase';
 import { ReviewItem } from '../../types';
+import { buildMessageReplyEmailDraft } from '../../utils/emailHelper';
+import { openEmailComposer } from '../../utils/pdfExport';
 import { buildWhatsAppUrl } from '../../utils/whatsapp';
+import { ConfirmDialog } from '../ConfirmDialog';
+import { EmptyState, PaginationBar, StatusBadge } from '../ui/DesignSystem';
+
+const PAGE_SIZE = 10;
 
 export function AdminMessagesReviewsTab({
   mode,
@@ -21,30 +28,101 @@ export function AdminMessagesReviewsTab({
     reviews,
     saveReview,
     deleteReview,
+    importGoogleReviewsToSite,
     googleLiveProfile,
     triggerGoogleProfileSync,
   } = useApp();
 
   const reviewList = adminReviews.length > 0 ? adminReviews : reviews;
+  const [msgSearch, setMsgSearch] = useState('');
+  const [msgFilter, setMsgFilter] = useState<'all' | 'unread' | 'read'>('all');
+  const [msgPage, setMsgPage] = useState(1);
+  const [deleteMsgId, setDeleteMsgId] = useState<string | null>(null);
+
+  const [revSearch, setRevSearch] = useState('');
+  const [deleteReviewTarget, setDeleteReviewTarget] = useState<ReviewItem | null>(null);
   const [editingReview, setEditingReview] = useState<Omit<ReviewItem, 'createdAt'> | null>(null);
   const [saving, setSaving] = useState(false);
+  const [importingGoogle, setImportingGoogle] = useState(false);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [savingReplyId, setSavingReplyId] = useState<string | null>(null);
+
+  const filteredMessages = useMemo(() => {
+    const q = msgSearch.trim().toLowerCase();
+    return contactMessages.filter((m) => {
+      const readOk =
+        msgFilter === 'all' || (msgFilter === 'unread' ? !m.isRead : m.isRead);
+      const qOk =
+        !q ||
+        m.name.toLowerCase().includes(q) ||
+        m.phone.toLowerCase().includes(q) ||
+        m.subject.toLowerCase().includes(q) ||
+        m.message.toLowerCase().includes(q);
+      return readOk && qOk;
+    });
+  }, [contactMessages, msgSearch, msgFilter]);
+
+  useEffect(() => {
+    setMsgPage(1);
+  }, [msgSearch, msgFilter]);
+
+  const msgTotalPages = Math.max(1, Math.ceil(filteredMessages.length / PAGE_SIZE));
+  const paginatedMessages = useMemo(
+    () => filteredMessages.slice((msgPage - 1) * PAGE_SIZE, msgPage * PAGE_SIZE),
+    [filteredMessages, msgPage]
+  );
+
+  const filteredReviews = useMemo(() => {
+    const q = revSearch.trim().toLowerCase();
+    if (!q) return reviewList;
+    return reviewList.filter(
+      (r) =>
+        r.authorLabel.toLowerCase().includes(q) ||
+        r.quote.toLowerCase().includes(q) ||
+        r.source.toLowerCase().includes(q)
+    );
+  }, [reviewList, revSearch]);
 
   if (mode === 'messages') {
     return (
       <div className="space-y-4">
-        <h2 className="text-lg font-bold text-[#1D1D1F]">
-          Customer Contact Messages ({contactMessages.length})
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-bold text-[#1D1D1F]">
+            Customer Contact Messages ({filteredMessages.length})
+          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative w-full sm:w-56">
+              <Search className="w-4 h-4 text-[#6E6E73] absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="search"
+                value={msgSearch}
+                onChange={(e) => setMsgSearch(e.target.value)}
+                placeholder="Search customer, subject..."
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs sm:text-sm"
+              />
+            </div>
+            <select
+              value={msgFilter}
+              onChange={(e) => setMsgFilter(e.target.value as 'all' | 'unread' | 'read')}
+              aria-label="Filter messages by read status"
+              className="px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs sm:text-sm"
+            >
+              <option value="all">All Messages</option>
+              <option value="unread">Unread Only</option>
+              <option value="read">Read</option>
+            </select>
+          </div>
+        </div>
 
         <div className="space-y-3">
-          {contactMessages.length === 0 ? (
-            <div className="p-10 rounded-xl border border-[#E5E5EA] bg-white text-center text-sm text-[#6E6E73]">
-              No contact form messages yet.
-            </div>
+          {filteredMessages.length === 0 ? (
+            <EmptyState
+              title="No contact messages found"
+              description="Customer enquiries sent from the Contact page or Customer Support tab will appear here."
+              icon={<MessageSquare className="w-5 h-5" />}
+            />
           ) : (
-            contactMessages.map((msg) => {
+            paginatedMessages.map((msg) => {
               const currentDraft =
                 replyDrafts[msg.id] !== undefined ? replyDrafts[msg.id] : msg.adminReply || '';
               return (
@@ -84,6 +162,16 @@ export function AdminMessagesReviewsTab({
                         {msg.isRead ? <MailOpen className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
                         {msg.isRead ? 'Mark Unread' : 'Mark Read'}
                       </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openEmailComposer(buildMessageReplyEmailDraft(msg, currentDraft, settings))
+                        }
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#0066CC]/30 bg-blue-50 text-[#0066CC] hover:bg-blue-100 text-xs font-semibold"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        Email Reply
+                      </button>
                       <a
                         href={buildWhatsAppUrl(
                           msg.phone,
@@ -98,10 +186,7 @@ export function AdminMessagesReviewsTab({
                       </a>
                       <button
                         type="button"
-                        onClick={async () => {
-                          await deleteContactMessage(msg.id);
-                          onNotify('success', 'Message deleted.');
-                        }}
+                        onClick={() => setDeleteMsgId(msg.id)}
                         aria-label="Delete message"
                         className="p-1.5 rounded-lg text-red-600 hover:bg-red-50"
                       >
@@ -136,8 +221,7 @@ export function AdminMessagesReviewsTab({
                             await replyToContactMessage(msg.id, currentDraft);
                             onNotify('success', 'Reply saved to customer dashboard.');
                           } catch (err) {
-                            console.error(err);
-                            onNotify('error', 'Failed to save reply.');
+                            onNotify('error', extractReadableError(err, 'Failed to save reply.'));
                           } finally {
                             setSavingReplyId(null);
                           }
@@ -154,6 +238,32 @@ export function AdminMessagesReviewsTab({
             })
           )}
         </div>
+
+        <PaginationBar
+          page={msgPage}
+          totalPages={msgTotalPages}
+          totalItems={filteredMessages.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setMsgPage}
+        />
+
+        <ConfirmDialog
+          open={Boolean(deleteMsgId)}
+          title="Delete Contact Message?"
+          description="Permanently deletes this customer support message."
+          confirmLabel="Delete Message"
+          onCancel={() => setDeleteMsgId(null)}
+          onConfirm={async () => {
+            if (!deleteMsgId) return;
+            try {
+              await deleteContactMessage(deleteMsgId);
+              setDeleteMsgId(null);
+              onNotify('success', 'Message deleted.');
+            } catch (err) {
+              onNotify('error', extractReadableError(err, 'Failed to delete message.'));
+            }
+          }}
+        />
       </div>
     );
   }
@@ -179,8 +289,7 @@ export function AdminMessagesReviewsTab({
       onNotify('success', 'Review saved.');
       setEditingReview(null);
     } catch (err) {
-      console.error(err);
-      onNotify('error', 'Failed to save review.');
+      onNotify('error', extractReadableError(err, 'Failed to save review.'));
     } finally {
       setSaving(false);
     }
@@ -197,17 +306,29 @@ export function AdminMessagesReviewsTab({
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-[#1D1D1F]">Customer & Google Reviews ({reviewList.length})</h2>
+          <h2 className="text-lg font-bold text-[#1D1D1F]">Customer & Google Reviews ({filteredReviews.length})</h2>
           <p className="text-xs text-[#6E6E73]">Moderate live public website reviews and manage verified Google Business Profile sync.</p>
         </div>
-        <button
-          type="button"
-          onClick={openNewReview}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0066CC] hover:bg-[#0052A3] text-white text-xs font-semibold"
-        >
-          <Plus className="w-4 h-4" />
-          Add Verified Review
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-56">
+            <Search className="w-4 h-4 text-[#6E6E73] absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="search"
+              value={revSearch}
+              onChange={(e) => setRevSearch(e.target.value)}
+              placeholder="Search reviewer or quote..."
+              className="w-full pl-9 pr-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs sm:text-sm"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={openNewReview}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0066CC] hover:bg-[#0052A3] text-white text-xs font-semibold"
+          >
+            <Plus className="w-4 h-4" />
+            Add Verified Review
+          </button>
+        </div>
       </div>
 
       <div className="p-5 rounded-xl bg-white border border-[#E5E5EA] space-y-4">
@@ -244,6 +365,32 @@ export function AdminMessagesReviewsTab({
               <RefreshCw className={`w-3.5 h-3.5 ${googleLiveProfile.loading ? 'animate-spin' : ''}`} />
               Sync Live Google Reviews Now
             </button>
+            {googleLiveProfile.reviews.length > 0 && (
+              <button
+                type="button"
+                disabled={importingGoogle}
+                onClick={async () => {
+                  setImportingGoogle(true);
+                  try {
+                    const count = await importGoogleReviewsToSite();
+                    onNotify(
+                      'success',
+                      count > 0
+                        ? `Saved ${count} new Google Business review(s) to the website database.`
+                        : 'All live Google Business reviews are already saved on the website.'
+                    );
+                  } catch (err) {
+                    onNotify('error', extractReadableError(err, 'Failed to import Google reviews.'));
+                  } finally {
+                    setImportingGoogle(false);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0066CC] hover:bg-[#0052A3] disabled:opacity-60 text-white text-xs font-semibold whitespace-nowrap"
+              >
+                <Check className="w-3.5 h-3.5" />
+                {importingGoogle ? 'Saving...' : 'Save Live Google Reviews to Site'}
+              </button>
+            )}
             <a
               href={mapsUrl}
               target="_blank"
@@ -291,47 +438,52 @@ export function AdminMessagesReviewsTab({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {reviewList.map((rev) => (
-          <div key={rev.id} className="p-5 rounded-xl border border-[#E5E5EA] bg-white space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1 text-amber-400">
-                {Array.from({ length: rev.rating }).map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
-                ))}
+      {filteredReviews.length === 0 ? (
+        <EmptyState
+          title="No reviews match your filter"
+          description="Import live Google Business Profile reviews or add a verified testimonial."
+          icon={<Star className="w-5 h-5" />}
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filteredReviews.map((rev) => (
+            <div key={rev.id} className="p-5 rounded-xl border border-[#E5E5EA] bg-white space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1 text-amber-400">
+                  {Array.from({ length: rev.rating }).map((_, i) => (
+                    <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                  ))}
+                </div>
+                <StatusBadge label={rev.isVisible ? 'Visible' : 'Hidden'} tone={rev.isVisible ? 'success' : 'neutral'} />
               </div>
-              <span className="text-xs text-[#6E6E73]">{rev.isVisible ? 'Visible' : 'Hidden'}</span>
-            </div>
-            <p className="text-sm text-[#1D1D1F] font-medium">“{rev.quote}”</p>
-            <div className="flex items-center justify-between pt-2 border-t border-[#F5F5F7] text-xs text-[#6E6E73]">
-              <span className="truncate">
-                <strong className="text-[#1D1D1F]">{rev.authorLabel}</strong> · {rev.source}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingReview({ ...rev })}
-                  className="inline-flex items-center gap-1 text-[#0066CC] font-semibold"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await deleteReview(rev.id);
-                    onNotify('success', 'Review deleted.');
-                  }}
-                  className="text-red-600"
-                  aria-label="Delete review"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+              <p className="text-sm text-[#1D1D1F] font-medium">“{rev.quote}”</p>
+              <div className="flex items-center justify-between pt-2 border-t border-[#F5F5F7] text-xs text-[#6E6E73]">
+                <span className="truncate">
+                  <strong className="text-[#1D1D1F]">{rev.authorLabel}</strong> · {rev.source}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingReview({ ...rev })}
+                    className="inline-flex items-center gap-1 text-[#0066CC] font-semibold"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteReviewTarget(rev)}
+                    className="text-red-600"
+                    aria-label="Delete review"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {editingReview && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
@@ -404,6 +556,24 @@ export function AdminMessagesReviewsTab({
           </form>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteReviewTarget)}
+        title={`Delete review by ${deleteReviewTarget?.authorLabel}?`}
+        description="Removes this review from the website reviews database."
+        confirmLabel="Delete Review"
+        onCancel={() => setDeleteReviewTarget(null)}
+        onConfirm={async () => {
+          if (!deleteReviewTarget) return;
+          try {
+            await deleteReview(deleteReviewTarget.id);
+            setDeleteReviewTarget(null);
+            onNotify('success', 'Review deleted.');
+          } catch (err) {
+            onNotify('error', extractReadableError(err, 'Failed to delete review.'));
+          }
+        }}
+      />
     </div>
   );
 }

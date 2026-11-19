@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { APIProvider } from '@vis.gl/react-google-maps';
 import { MotionConfig } from 'motion/react';
-import { AppProvider } from './context/AppContext';
+import { AuthProvider, ProtectedRoute } from './context/AuthContext';
+import { AppProvider, useApp } from './context/AppContext';
+import { ErpProvider } from './context/ErpContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { FloatingActions } from './components/FloatingActions';
 import { LiveGoogleReviewsSync } from './components/LiveGoogleReviewsSync';
+import { DocumentPreviewHost } from './components/DocumentPreviewModal';
+import { EmailComposerHost } from './components/EmailComposerModal';
 import { ToastContainer, type ToastMessage } from './components/Toast';
 import { HomePage } from './pages/HomePage';
 import { ServicesPage } from './pages/ServicesPage';
@@ -22,7 +26,10 @@ import { LegalPage } from './pages/LegalPage';
 import { ReviewsPage } from './pages/ReviewsPage';
 import { FaqPage } from './pages/FaqPage';
 import { CustomerDashboardPage } from './pages/CustomerDashboardPage';
-import { AdminPage } from './pages/AdminPage';
+
+const AdminPage = lazy(() =>
+  import('./pages/AdminPage').then((mod) => ({ default: mod.AdminPage }))
+);
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -30,6 +37,18 @@ function ScrollToTop() {
     window.scrollTo({ top: 0, behavior: 'auto' });
   }, [pathname]);
   return null;
+}
+
+function DynamicRedirectGuard() {
+  const { pathname } = useLocation();
+  const { settings } = useApp();
+  const match = (settings.erpConfig?.redirectRules || []).find(
+    (r) => r.fromPath && r.toPath && r.fromPath === pathname && r.toPath !== pathname
+  );
+  if (match) {
+    return <Navigate to={match.toPath} replace />;
+  }
+  return <Navigate to="/" replace />;
 }
 
 function AppShell() {
@@ -108,13 +127,36 @@ function AppShell() {
           <Route path="/cookie-policy" element={<LegalPage type="cookies" />} />
           <Route path="/repair-disclaimer" element={<LegalPage type="disclaimer" />} />
           <Route path="/dashboard" element={<CustomerDashboardPage onNotify={notify} />} />
-          <Route path="/admin" element={<AdminPage onNotify={notify} />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute
+                allowedRoles={['super_admin', 'admin', 'staff', 'technician']}
+                onAuthError={(msg) => notify('error', msg)}
+              >
+                <Suspense
+                  fallback={
+                    <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center p-6">
+                      <div className="text-center space-y-2">
+                        <div className="w-7 h-7 border-2 border-[#0066CC] border-t-transparent rounded-full animate-spin mx-auto" />
+                        <p className="text-xs font-medium text-[#6E6E73]">Loading Refix Pro ERP Console...</p>
+                      </div>
+                    </div>
+                  }
+                >
+                  <AdminPage onNotify={notify} />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<DynamicRedirectGuard />} />
         </Routes>
       </div>
 
       {!isAdminRoute && <Footer />}
       {!isAdminRoute && <FloatingActions />}
+      <DocumentPreviewHost />
+      <EmailComposerHost onNotify={notify} />
     </div>
   );
 
@@ -139,9 +181,13 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user">
       <BrowserRouter>
-        <AppProvider>
-          <AppShell />
-        </AppProvider>
+        <AuthProvider>
+          <AppProvider>
+            <ErpProvider>
+              <AppShell />
+            </ErpProvider>
+          </AppProvider>
+        </AuthProvider>
       </BrowserRouter>
     </MotionConfig>
   );

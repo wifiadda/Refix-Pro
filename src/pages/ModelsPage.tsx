@@ -137,7 +137,7 @@ export function ModelsPage() {
                   const nextProbs = COMMON_MODEL_PROBLEMS_BY_CATEGORY[nextCat] || DEFAULT_MAC_PROBLEMS;
                   setFormProblem(nextProbs[0]);
                 }}
-                className="w-full px-3 py-2.5 rounded-xl border border-[#D2D2D7] bg-white text-sm text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+                className="w-full min-h-[44px] px-3 py-2.5 rounded-xl border border-[#D2D2D7] bg-white text-sm text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
               >
                 {MACBOOK_CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>{cat}</option>
@@ -156,7 +156,7 @@ export function ModelsPage() {
                 value={formModelYear}
                 onChange={(e) => setFormModelYear(e.target.value)}
                 placeholder="e.g. A2337, iPad Pro M2, iPhone 15 Pro"
-                className="w-full px-3 py-2.5 rounded-xl border border-[#D2D2D7] bg-white text-sm text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+                className="w-full min-h-[44px] px-3 py-2.5 rounded-xl border border-[#D2D2D7] bg-white text-sm text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
               />
               <datalist id="apple-model-suggestions">
                 {modelsForSelectedCategory.map((m) => (
@@ -176,7 +176,7 @@ export function ModelsPage() {
                 id="selector-problem"
                 value={formProblem}
                 onChange={(e) => setFormProblem(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-[#D2D2D7] bg-white text-sm text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+                className="w-full min-h-[44px] px-3 py-2.5 rounded-xl border border-[#D2D2D7] bg-white text-sm text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
               >
                 {problemOptions.map((p) => (
                   <option key={p} value={p}>{p}</option>
@@ -187,7 +187,7 @@ export function ModelsPage() {
             <div className="flex gap-2">
               <button
                 type="submit"
-                className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] text-white text-sm font-semibold transition-colors whitespace-nowrap"
+                className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#0066CC] hover:bg-[#0052A3] text-white text-sm font-semibold transition-colors whitespace-nowrap"
               >
                 4. Book Repair
                 <ArrowRight className="w-4 h-4" />
@@ -200,7 +200,7 @@ export function ModelsPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Confirm model support on WhatsApp"
-                className="inline-flex items-center justify-center px-3.5 py-2.5 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white transition-colors"
+                className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3.5 py-2.5 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white transition-colors"
               >
                 <MessageCircle className="w-4 h-4" />
               </a>
