@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
+  CheckSquare,
+  Download,
   FileText,
   Mail,
   Plus,
@@ -82,6 +84,7 @@ export function AdminJobsTab({
   const {
     repairJobs,
     technicians,
+    bulkUpdateRepairJobStatus,
     deleteRepairJob,
     generateInvoiceFromJob,
   } = useErp();
@@ -92,11 +95,18 @@ export function AdminJobsTab({
   const [sortBy, setSortBy] = useState<'recent' | 'cost_desc' | 'status'>('recent');
   const [page, setPage] = useState(1);
 
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkStatus, setBulkStatus] = useState<JobWorkflowStatus>('In Repair');
+  const [bulkTechName, setBulkTechName] = useState<string>('');
+  const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+
   const [modalJob, setModalJob] = useState<Omit<RepairJobCard, 'createdAt' | 'updatedAt'> | null>(null);
   const [isNewModal, setIsNewModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RepairJobCard | null>(null);
 
   const canCreateJob = (isAdmin || isFrontDeskStaff) && hasPermission('jobs', 'create');
+  const canEditJob = (isAdmin || isFrontDeskStaff) && hasPermission('jobs', 'edit');
   const canDeleteJob = isAdmin && hasPermission('jobs', 'delete');
   const canExportJob = isAdmin && hasPermission('jobs', 'export');
   const canCreateInvoice = (isAdmin || isFrontDeskStaff) && hasPermission('invoices', 'create');
@@ -146,7 +156,57 @@ export function AdminJobsTab({
     }
   };
 
-  const handleExportCsv = () => {
+  const paginatedIds = useMemo(() => paginated.map((j) => j.id), [paginated]);
+  const allPageSelected =
+    paginatedIds.length > 0 && paginatedIds.every((id) => selectedIds.includes(id));
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectPage = () => {
+    if (allPageSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !paginatedIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...paginatedIds])));
+    }
+  };
+
+  const handleBulkApply = async () => {
+    if (selectedIds.length === 0) return;
+    setBulkSaving(true);
+    try {
+      const chosenTech = bulkTechName
+        ? technicians.find((t) => t.name === bulkTechName)
+        : undefined;
+      const updatedCount = await bulkUpdateRepairJobStatus(
+        selectedIds,
+        bulkStatus,
+        chosenTech ? { name: chosenTech.name, uid: chosenTech.uid } : undefined
+      );
+      setSelectedIds([]);
+      setConfirmBulkOpen(false);
+      setBulkTechName('');
+      onNotify(
+        'success',
+        `Updated ${updatedCount} job card(s) to "${bulkStatus}"${
+          chosenTech ? ` · Assigned to ${chosenTech.name}` : ''
+        }.`
+      );
+    } catch (err) {
+      onNotify('error', extractReadableError(err, 'Bulk status update failed.'));
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
+  const handleExportCsv = (onlySelected = false) => {
+    const sourceRows =
+      onlySelected && selectedIds.length > 0
+        ? filtered.filter((j) => selectedIds.includes(j.id))
+        : filtered;
     const headers = [
       'Job Card ID',
       'Customer',
@@ -161,7 +221,7 @@ export function AdminJobsTab({
       'Payment Status',
       'Delivery Date',
     ];
-    const rows = filtered.map((j) => [
+    const rows = sourceRows.map((j) => [
       j.jobCardCode,
       j.customerName,
       j.customerMobile,
@@ -279,7 +339,13 @@ export function AdminJobsTab({
 
         <div className="flex flex-wrap items-center gap-2">
           {canExportJob && (
-            <Button type="button" variant="secondary" size="sm" onClick={handleExportCsv}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              icon={<Download className="w-4 h-4" />}
+              onClick={() => handleExportCsv(false)}
+            >
               Export CSV
             </Button>
           )}
@@ -299,6 +365,76 @@ export function AdminJobsTab({
           )}
         </div>
       </div>
+
+      {/* Contextual Bulk Actions Bar */}
+      {canEditJob && selectedIds.length > 0 && (
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-[#0F172A] text-white flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-2.5 text-xs sm:text-sm">
+            <CheckSquare className="w-4 h-4 text-blue-300 shrink-0" />
+            <span className="font-bold">
+              {selectedIds.length} repair job{selectedIds.length > 1 ? 's' : ''} selected
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="text-xs text-slate-300 hover:text-white underline ml-1"
+            >
+              Clear
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={bulkStatus}
+              onChange={(e) => setBulkStatus(e.target.value as JobWorkflowStatus)}
+              aria-label="Bulk target repair status"
+              className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white text-[#1D1D1F] text-xs font-semibold"
+            >
+              {workflowOptions.map((st) => (
+                <option key={st} value={st}>
+                  Set Status: {st}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={bulkTechName}
+              onChange={(e) => setBulkTechName(e.target.value)}
+              aria-label="Optional bulk assign technician"
+              className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white text-[#1D1D1F] text-xs font-semibold"
+            >
+              <option value="">Keep Existing Technician</option>
+              {technicians.map((t) => (
+                <option key={t.id} value={t.name}>
+                  Assign: {t.name}
+                </option>
+              ))}
+            </select>
+
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              loading={bulkSaving}
+              onClick={() => setConfirmBulkOpen(true)}
+            >
+              Apply Bulk Update
+            </Button>
+
+            {canExportJob && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                icon={<Download className="w-3.5 h-3.5" />}
+                onClick={() => handleExportCsv(true)}
+              >
+                Export Selected
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Job Cards Table */}
       {paginated.length === 0 ? (
@@ -329,6 +465,17 @@ export function AdminJobsTab({
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#E5E5EA] bg-[#F5F5F7] text-xs font-semibold text-[#424245]">
+                  {canEditJob && (
+                    <th className="py-3 pl-4 pr-2 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allPageSelected}
+                        onChange={toggleSelectPage}
+                        aria-label="Select all repair job cards on current page"
+                        className="w-4 h-4 rounded border-[#D2D2D7] text-[#0066CC]"
+                      />
+                    </th>
+                  )}
                   <th className="py-3 px-4">Job Card</th>
                   <th className="py-3 px-4">Customer</th>
                   <th className="py-3 px-4">Device &amp; Issue</th>
@@ -339,8 +486,26 @@ export function AdminJobsTab({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E5E5EA] text-xs sm:text-sm">
-                {paginated.map((job) => (
-                  <tr key={job.id} className="hover:bg-[#F5F5F7]/60 transition-colors">
+                {paginated.map((job) => {
+                  const isChecked = selectedIds.includes(job.id);
+                  return (
+                  <tr
+                    key={job.id}
+                    className={`transition-colors ${
+                      isChecked ? 'bg-blue-50/50' : 'hover:bg-[#F5F5F7]/60'
+                    }`}
+                  >
+                    {canEditJob && (
+                      <td className="py-3 pl-4 pr-2">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleSelectOne(job.id)}
+                          aria-label={`Select ${job.jobCardCode}`}
+                          className="w-4 h-4 rounded border-[#D2D2D7] text-[#0066CC]"
+                        />
+                      </td>
+                    )}
                     <td className="py-3 px-4 font-mono font-bold text-[#0066CC] whitespace-nowrap">
                       {job.jobCardCode}
                       {job.enquiryCode && (
@@ -423,7 +588,8 @@ export function AdminJobsTab({
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -448,6 +614,18 @@ export function AdminJobsTab({
           onNavigateTab={(t) => onNavigateTab?.(t)}
         />
       )}
+
+      <ConfirmDialog
+        open={confirmBulkOpen}
+        title={`Update ${selectedIds.length} Repair Job Card(s)?`}
+        description={`This will set the workflow status of ${selectedIds.length} selected job card(s) to "${bulkStatus}"${
+          bulkTechName ? ` and assign them to ${bulkTechName}` : ''
+        }.`}
+        confirmLabel="Apply Bulk Status"
+        loading={bulkSaving}
+        onCancel={() => setConfirmBulkOpen(false)}
+        onConfirm={() => void handleBulkApply()}
+      />
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}

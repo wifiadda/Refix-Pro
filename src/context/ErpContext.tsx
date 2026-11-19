@@ -93,6 +93,11 @@ interface ErpContextValue {
   ) => Promise<void>;
   customerRespondEstimate: (jobId: string, decision: 'Approved' | 'Rejected') => Promise<void>;
   consumePartInJob: (job: RepairJobCard, part: InventoryItem, quantityUsed: number) => Promise<void>;
+  bulkUpdateRepairJobStatus: (
+    jobIds: string[],
+    status: JobWorkflowStatus,
+    technician?: { name: string; uid?: string }
+  ) => Promise<number>;
   deleteRepairJob: (jobId: string) => Promise<void>;
 
   // CRM Customers
@@ -662,6 +667,49 @@ export function ErpProvider({ children }: { children: React.ReactNode }) {
       },
       true
     );
+  };
+
+  const bulkUpdateRepairJobStatus = async (
+    jobIds: string[],
+    status: JobWorkflowStatus,
+    technician?: { name: string; uid?: string }
+  ): Promise<number> => {
+    const uniqueIds = Array.from(new Set(jobIds.filter(Boolean)));
+    if (uniqueIds.length === 0) return 0;
+
+    try {
+      const chunkSize = 400;
+      for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+        const chunk = uniqueIds.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        chunk.forEach((jobId) => {
+          batch.update(doc(db, 'repairJobs', jobId), {
+            status,
+            ...(technician
+              ? {
+                  technicianName: technician.name.slice(0, 120),
+                  technicianUid: (technician.uid || '').slice(0, 128),
+                }
+              : {}),
+            updatedAt: serverTimestamp(),
+          });
+        });
+        await batch.commit();
+      }
+
+      await logActivity({
+        action: 'JOB_BULK_STATUS_UPDATE',
+        targetCollection: 'repairJobs',
+        targetId: uniqueIds.slice(0, 5).join(','),
+        summary: `Bulk updated ${uniqueIds.length} repair job card(s) to "${status}"${
+          technician?.name ? ` (Assigned: ${technician.name})` : ''
+        }`,
+      });
+      await refreshErpData();
+      return uniqueIds.length;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'repairJobs/bulk');
+    }
   };
 
   const updateJobAsTechnician = async (
@@ -1321,6 +1369,7 @@ export function ErpProvider({ children }: { children: React.ReactNode }) {
         updateJobAsTechnician,
         customerRespondEstimate,
         consumePartInJob,
+        bulkUpdateRepairJobStatus,
         deleteRepairJob,
         saveCustomer,
         upsertCustomerFromRecord,

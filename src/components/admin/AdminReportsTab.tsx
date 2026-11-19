@@ -107,6 +107,87 @@ export function AdminReportsTab() {
     downloadCsvFile(`refix-pro-business-report-${period}-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
   };
 
+  const handleExportFinancialCsv = () => {
+    const headers = [
+      'Invoice Number',
+      'Job Card Code',
+      'Customer Name',
+      'Mobile',
+      'Device',
+      'Issued Date',
+      'Status',
+      'Service Charges (INR)',
+      'Parts Charges (INR)',
+      'Tax Amount (INR)',
+      'Discount (INR)',
+      'Total Amount (INR)',
+      'Amount Paid (INR)',
+      'Outstanding Balance (INR)',
+    ];
+    const rows = invoices.map((inv) => [
+      inv.invoiceNumber,
+      inv.jobCardCode || '',
+      inv.customerName,
+      inv.customerMobile,
+      inv.deviceSummary,
+      inv.issuedDate,
+      inv.status,
+      inv.serviceCharges,
+      inv.partsCharges,
+      inv.taxAmount,
+      inv.discount,
+      inv.totalAmount,
+      inv.amountPaid,
+      inv.outstandingAmount,
+    ]);
+    downloadCsvFile(`refix-pro-financial-invoices-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+  };
+
+  const handleExportExpensesCsv = () => {
+    const headers = ['Date', 'Category', 'Description', 'Method', 'Reference', 'Amount (INR)'];
+    const rows = expenses.map((exp) => [
+      exp.expenseDate,
+      exp.category,
+      exp.description,
+      exp.paymentMethod,
+      exp.referenceNumber || '',
+      exp.amount,
+    ]);
+    downloadCsvFile(`refix-pro-expenses-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+  };
+
+  const handleExportInventoryCsv = () => {
+    const headers = [
+      'Part Code',
+      'SKU',
+      'Spare Part Name',
+      'Compatible Models',
+      'Supplier',
+      'Shelf Location',
+      'Stock Qty',
+      'Min Threshold',
+      'Reorder Status',
+      'Unit Cost (INR)',
+      'Selling Price (INR)',
+      'Total Cost Valuation (INR)',
+    ];
+    const rows = inventory.map((item) => [
+      item.partCode,
+      item.sku,
+      item.name,
+      item.compatibleModels,
+      item.supplierName,
+      item.location,
+      item.quantity,
+      item.minStock,
+      item.quantity <= 0 ? 'OUT OF STOCK' : item.quantity <= item.minStock ? 'LOW STOCK' : 'OK',
+      item.purchasePrice,
+      item.sellingPrice,
+      item.purchasePrice * item.quantity,
+    ]);
+    downloadCsvFile(`refix-pro-inventory-report-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+  };
+
   const handlePrintPdf = () => {
     printHtmlDocument(
       `Refix Pro Business Report (${period})`,
@@ -179,6 +260,45 @@ export function AdminReportsTab() {
             onClick={handlePrintPdf}
           >
             Preview &amp; Print PDF Report
+          </Button>
+        </div>
+      </div>
+
+      {/* Dedicated Financial & Inventory CSV Export Suite */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#E5E5EA] flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-bold text-[#1D1D1F]">Financial &amp; Inventory CSV Exports</h3>
+          <p className="text-xs text-[#6E6E73] mt-0.5">
+            Download accounting-ready CSV spreadsheets for GST billing, expenses, and spare-parts stock valuation.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            icon={<Download className="w-3.5 h-3.5 text-[#0066CC]" />}
+            onClick={handleExportFinancialCsv}
+          >
+            Invoices &amp; Tax CSV ({invoices.length})
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            icon={<Download className="w-3.5 h-3.5 text-[#0066CC]" />}
+            onClick={handleExportExpensesCsv}
+          >
+            Expenses CSV ({expenses.length})
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            icon={<Download className="w-3.5 h-3.5 text-[#0066CC]" />}
+            onClick={handleExportInventoryCsv}
+          >
+            Inventory Valuation CSV ({inventory.length})
           </Button>
         </div>
       </div>

@@ -26,6 +26,59 @@ export function buildServiceWhatsAppMessage(serviceTitle: string, model?: string
   return `Hello Refix Pro, I need ${serviceTitle} for my MacBook in Gurugram. Please help me with the repair details.`;
 }
 
+export function generateServiceWhatsAppTemplate(input: {
+  serviceTitle: string;
+  serviceCategory?: string;
+  macbookModel?: string;
+  customerName?: string;
+  mobile?: string;
+  problemDescription?: string;
+}): string {
+  const service = (input.serviceTitle || 'MacBook Diagnostic Inspection').trim();
+  const model = (input.macbookModel || '').trim() || '[MacBook Model / A-Number]';
+  const name = (input.customerName || '').trim();
+  const phone = (input.mobile || '').trim();
+  const problem = (input.problemDescription || '').trim();
+  const hay = `${service} ${input.serviceCategory || ''}`.toLowerCase();
+
+  let serviceSpecificChecks = '• Diagnostic Check Requested: Full hardware bench evaluation & exact estimate before repair';
+  if (/liquid|water|spill|corrosion/.test(hay)) {
+    serviceSpecificChecks =
+      '• Urgent Liquid Spill Protocol: Keeping device powered OFF & disconnected from MagSafe/USB-C\n• Requested: Ultrasonic board cleaning, short-rail inspection & corrosion recovery';
+  } else if (/display|screen|lcd|backlight|flexgate|crack/.test(hay)) {
+    serviceSpecificChecks =
+      '• Display Details: Screen assembly / TrueTone / backlight inspection\n• Please share compatible panel stock availability & turnaround time';
+  } else if (/battery|charging|magsafe|power|usb-c|port/.test(hay)) {
+    serviceSpecificChecks =
+      '• Power & Battery Check: USB-C PD 20V charging negotiation, battery health & cycle check\n• Please confirm replacement battery / DC-in board stock';
+  } else if (/logic board|motherboard|no power|dead|chip|micro|gpu|ssd/.test(hay)) {
+    serviceSpecificChecks =
+      '• Logic Board Bench Request: Schematic micro-soldering & power rail diagnostics\n• Data Safety Priority: Preserve internal SSD data wherever possible';
+  } else if (/keyboard|trackpad|hinge|body|fan|thermal/.test(hay)) {
+    serviceSpecificChecks =
+      '• Mechanical / Thermal Check: Top-case key/trackpad response, fan cleanup & thermal paste check';
+  } else if (/software|macos|data|recovery|upgrade|ssd/.test(hay)) {
+    serviceSpecificChecks =
+      '• macOS & Data Request: OS recovery, performance optimization & backup verification';
+  }
+
+  const lines = [
+    'Hello Refix Pro (Sector 14, Gurugram),',
+    'I would like to book a MacBook repair:',
+    '',
+    `• Selected Service: ${service}`,
+    `• Device Model: ${model}`,
+    ...(name ? [`• Customer Name: ${name}`] : []),
+    ...(phone ? [`• Contact Mobile: ${phone}`] : []),
+    ...(problem ? [`• Observed Issue: ${problem}`] : []),
+    serviceSpecificChecks,
+    '',
+    'Please confirm slot availability and estimated diagnostic turnaround.',
+  ];
+
+  return lines.join('\n');
+}
+
 export async function compressImageToDataUrl(
   file: File,
   maxWidth = 900,

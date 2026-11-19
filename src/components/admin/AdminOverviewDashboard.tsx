@@ -20,6 +20,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { useErp } from '../../context/ErpContext';
 import { StatusBadge } from '../ui/DesignSystem';
+import { SystemHealthPanel } from './SystemHealthPanel';
 import type { AdminModuleKey } from '../../types';
 
 function toMillis(val: unknown): number {
@@ -445,6 +446,9 @@ export function AdminOverviewDashboard({
           );
         })}
       </div>
+
+      {/* Automated System Health Monitor */}
+      <SystemHealthPanel onNavigate={onNavigate} />
 
       {/* Charts Row: Revenue vs Expense SVG Chart + Repair Status Distribution */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
