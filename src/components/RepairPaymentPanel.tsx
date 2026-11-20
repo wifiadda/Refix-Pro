@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
 import {
   Check,
   CheckCircle2,
   Copy,
   CreditCard,
+  Download,
   ExternalLink,
   Landmark,
   QrCode,
+  RefreshCw,
   ShieldCheck,
   Smartphone,
 } from 'lucide-react';
@@ -18,6 +21,7 @@ import { openRazorpayCheckout } from '../utils/razorpay';
 interface RepairPaymentPanelProps {
   enquiryId?: string;
   enquiryCode?: string;
+  invoiceNumber?: string;
   customerName?: string;
   mobile?: string;
   email?: string;
@@ -26,6 +30,7 @@ interface RepairPaymentPanelProps {
   paymentStatus?: PaymentStatus;
   existingReference?: string;
   deviceLabel?: string;
+  defaultPaymentMode?: 'razorpay' | 'manual';
   onSuccess?: (message: string) => void;
   onError?: (message: string) => void;
   compact?: boolean;
@@ -34,6 +39,7 @@ interface RepairPaymentPanelProps {
 export function RepairPaymentPanel({
   enquiryId,
   enquiryCode = '',
+  invoiceNumber = '',
   customerName = '',
   mobile = '',
   email = '',
@@ -42,6 +48,7 @@ export function RepairPaymentPanel({
   paymentStatus = 'Unpaid',
   existingReference = '',
   deviceLabel = '',
+  defaultPaymentMode,
   onSuccess,
   onError,
   compact = false,
@@ -55,9 +62,16 @@ export function RepairPaymentPanel({
   const razorpayAvailable = hasRazorpayKey || hasRazorpayLink;
   const manualAvailable = settings.manualPaymentEnabled !== false;
 
-  const [mode, setMode] = useState<'razorpay' | 'manual'>(
-    razorpayAvailable ? 'razorpay' : 'manual'
-  );
+  const initialMode: 'razorpay' | 'manual' =
+    defaultPaymentMode === 'manual' && manualAvailable
+      ? 'manual'
+      : defaultPaymentMode === 'razorpay' && razorpayAvailable
+        ? 'razorpay'
+        : razorpayAvailable
+          ? 'razorpay'
+          : 'manual';
+
+  const [mode, setMode] = useState<'razorpay' | 'manual'>(initialMode);
 
   const [nameInput, setNameInput] = useState(customerName);
   const [mobileInput, setMobileInput] = useState(mobile);
@@ -70,16 +84,85 @@ export function RepairPaymentPanel({
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submittedRef, setSubmittedRef] = useState('');
+  const [dynamicQrDataUrl, setDynamicQrDataUrl] = useState('');
+  const [qrGenerating, setQrGenerating] = useState(false);
+  const [qrView, setQrView] = useState<'dynamic' | 'static'>('dynamic');
+
+  useEffect(() => {
+    if (customerName) setNameInput(customerName);
+  }, [customerName]);
+
+  useEffect(() => {
+    if (mobile) setMobileInput(mobile);
+  }, [mobile]);
+
+  useEffect(() => {
+    if (enquiryCode) setCodeInput(enquiryCode);
+  }, [enquiryCode]);
+
+  useEffect(() => {
+    if (defaultAmount > 0) {
+      setAmountInput(String(Math.round(defaultAmount)));
+    }
+  }, [defaultAmount]);
 
   const numericAmount = Math.max(0, Math.round(Number(amountInput) || 0));
-  const cleanUpiId = (settings.manualUpiId || '').trim();
+  const cleanUpiId = (settings.manualUpiId || 'refixpro@upi').trim();
+  const merchantName = (settings.businessName || 'Refix Pro').trim();
+  const txReference = (invoiceNumber || codeInput || '').trim();
+  const txNote = `Refix Pro ${invoiceNumber || codeInput || 'Repair Payment'}`.slice(0, 50);
+
   const upiDeepLink = cleanUpiId
     ? `upi://pay?pa=${encodeURIComponent(cleanUpiId)}&pn=${encodeURIComponent(
-        settings.businessName || 'Refix Pro'
-      )}${numericAmount > 0 ? `&am=${numericAmount}` : ''}&cu=INR&tn=${encodeURIComponent(
-        `Refix Pro ${codeInput || 'Repair Payment'}`
-      )}`
+        merchantName
+      )}${numericAmount > 0 ? `&am=${numericAmount.toFixed(2)}` : ''}&cu=INR&tn=${encodeURIComponent(
+        txNote
+      )}${txReference ? `&tr=${encodeURIComponent(txReference)}` : ''}`
     : '';
+
+  useEffect(() => {
+    let active = true;
+    if (!upiDeepLink) {
+      setDynamicQrDataUrl('');
+      return;
+    }
+
+    setQrGenerating(true);
+    QRCode.toDataURL(upiDeepLink, {
+      width: 280,
+      margin: 2,
+      errorCorrectionLevel: 'M',
+      color: {
+        dark: '#0F172A',
+        light: '#FFFFFF',
+      },
+    })
+      .then((url) => {
+        if (active) setDynamicQrDataUrl(url);
+      })
+      .catch((err) => {
+        console.error('Dynamic QR generation failed:', err);
+        if (active) setDynamicQrDataUrl('');
+      })
+      .finally(() => {
+        if (active) setQrGenerating(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [upiDeepLink]);
+
+  const handleDownloadQr = () => {
+    if (!dynamicQrDataUrl) return;
+    const a = document.createElement('a');
+    a.href = dynamicQrDataUrl;
+    const safeRef = (invoiceNumber || codeInput || 'upi').replace(/[^a-zA-Z0-9_-]/g, '');
+    a.download = `refixpro-upi-qr-${safeRef}-${numericAmount || 'open'}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
 
   const handleCopyUpi = async () => {
     if (!cleanUpiId) return;
@@ -420,16 +503,94 @@ export function RepairPaymentPanel({
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-            {/* Left: UPI / QR / Bank instructions */}
+            {/* Left: Dynamic UPI QR + UPI ID + Bank instructions */}
             <div className="lg:col-span-5 space-y-3">
               {cleanUpiId && (
-                <div className="p-3.5 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA] space-y-2">
-                  <p className="text-[11px] font-semibold text-[#6E6E73] flex items-center gap-1.5">
-                    <Smartphone className="w-3.5 h-3.5 text-[#0066CC]" />
-                    Official UPI ID
-                  </p>
+                <div className="p-4 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA] space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs sm:text-sm font-mono font-bold text-[#1D1D1F] break-all">
+                    <p className="text-[11px] font-semibold text-[#6E6E73] flex items-center gap-1.5">
+                      <QrCode className="w-3.5 h-3.5 text-[#0066CC]" />
+                      Dynamic Invoice UPI QR
+                    </p>
+                    <span
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-semibold tabular-nums ${
+                        numericAmount > 0
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : 'bg-amber-50 text-amber-800 border border-amber-200'
+                      }`}
+                    >
+                      {numericAmount > 0
+                        ? `Locked: ₹${numericAmount.toLocaleString('en-IN')}`
+                        : 'Open Amount'}
+                    </span>
+                  </div>
+
+                  {settings.manualUpiQrUrl && (
+                    <div className="inline-flex rounded-lg border border-[#D2D2D7] bg-white p-0.5 text-[11px] font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => setQrView('dynamic')}
+                        className={`px-2.5 py-1 rounded-md transition-colors ${
+                          qrView === 'dynamic'
+                            ? 'bg-[#0F172A] text-white'
+                            : 'text-[#424245] hover:text-[#1D1D1F]'
+                        }`}
+                      >
+                        Dynamic Amount QR
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setQrView('static')}
+                        className={`px-2.5 py-1 rounded-md transition-colors ${
+                          qrView === 'static'
+                            ? 'bg-[#0F172A] text-white'
+                            : 'text-[#424245] hover:text-[#1D1D1F]'
+                        }`}
+                      >
+                        Desk QR
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-white border border-[#E5E5EA] space-y-2">
+                    {qrView === 'static' && settings.manualUpiQrUrl ? (
+                      <img
+                        src={settings.manualUpiQrUrl}
+                        alt="Refix Pro Desk UPI QR Code"
+                        className="w-44 h-44 object-contain rounded-lg"
+                      />
+                    ) : qrGenerating ? (
+                      <div className="w-44 h-44 flex flex-col items-center justify-center text-xs text-[#6E6E73] gap-2">
+                        <RefreshCw className="w-5 h-5 animate-spin text-[#0066CC]" />
+                        Generating QR...
+                      </div>
+                    ) : dynamicQrDataUrl ? (
+                      <img
+                        src={dynamicQrDataUrl}
+                        alt={`Refix Pro UPI QR Code for ₹${numericAmount || 'payment'}`}
+                        className="w-44 h-44 object-contain rounded-lg"
+                      />
+                    ) : (
+                      <div className="w-44 h-44 flex items-center justify-center text-xs text-[#6E6E73] text-center px-3">
+                        Enter invoice details to render QR code
+                      </div>
+                    )}
+
+                    <div className="text-center space-y-0.5">
+                      <p className="text-[11px] font-semibold text-[#1D1D1F]">
+                        {numericAmount > 0
+                          ? `Scan to pay ₹${numericAmount.toLocaleString('en-IN')}`
+                          : 'Enter bill amount above to auto-fill QR amount'}
+                      </p>
+                      <p className="text-[10px] text-[#6E6E73]">
+                        Works with GPay · PhonePe · Paytm · BHIM · Any UPI App
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <span className="text-xs font-mono font-bold text-[#1D1D1F] break-all flex items-center gap-1.5">
+                      <Smartphone className="w-3.5 h-3.5 text-[#0066CC] shrink-0" />
                       {cleanUpiId}
                     </span>
                     <button
@@ -445,34 +606,33 @@ export function RepairPaymentPanel({
                       ) : (
                         <>
                           <Copy className="w-3.5 h-3.5 text-[#0066CC]" />
-                          Copy
+                          Copy UPI
                         </>
                       )}
                     </button>
                   </div>
-                  {upiDeepLink && (
-                    <a
-                      href={upiDeepLink}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0066CC] hover:underline pt-1"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      Open in GPay / PhonePe / Paytm
-                    </a>
-                  )}
-                </div>
-              )}
 
-              {settings.manualUpiQrUrl && (
-                <div className="p-3.5 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA] space-y-2">
-                  <p className="text-[11px] font-semibold text-[#6E6E73] flex items-center gap-1.5">
-                    <QrCode className="w-3.5 h-3.5 text-[#0066CC]" />
-                    Scan UPI QR Code
-                  </p>
-                  <img
-                    src={settings.manualUpiQrUrl}
-                    alt="Refix Pro UPI QR Code"
-                    className="w-40 h-40 object-contain rounded-lg border border-[#E5E5EA] bg-white p-1.5"
-                  />
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {upiDeepLink && (
+                      <a
+                        href={upiDeepLink}
+                        className="flex-1 min-h-[40px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#0F172A] hover:bg-black text-white text-xs font-semibold transition-colors whitespace-nowrap"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Open UPI App
+                      </a>
+                    )}
+                    {dynamicQrDataUrl && qrView === 'dynamic' && (
+                      <button
+                        type="button"
+                        onClick={handleDownloadQr}
+                        className="min-h-[40px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-[#D2D2D7] hover:bg-[#F5F5F7] text-xs font-semibold text-[#1D1D1F] transition-colors whitespace-nowrap"
+                      >
+                        <Download className="w-3.5 h-3.5 text-[#0066CC]" />
+                        Save QR
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 

@@ -96,14 +96,14 @@ export function SystemHealthPanel({
       (a) => a.scheduledDate === todayIso && a.status === 'Scheduled'
     ).length;
 
-    const tasks: PendingTaskAlert[] = [
+    const allTasks: PendingTaskAlert[] = [
       {
         id: 'overdue-jobs',
         label: 'Overdue Delivery Targets',
         count: overdueJobsCount,
         detail: overdueJobsCount > 0 ? 'Job cards past scheduled delivery date' : 'All delivery targets on track',
         severity: overdueJobsCount > 0 ? 'critical' : 'ok',
-        module: 'jobs' as AdminModuleKey,
+        module: 'jobs',
         icon: Clock,
       },
       {
@@ -112,7 +112,7 @@ export function SystemHealthPanel({
         count: unassignedJobsCount,
         detail: unassignedJobsCount > 0 ? 'Active jobs waiting technician assignment' : 'All active jobs assigned',
         severity: unassignedJobsCount > 2 ? 'critical' : unassignedJobsCount > 0 ? 'warning' : 'ok',
-        module: 'jobs' as AdminModuleKey,
+        module: 'jobs',
         icon: Wrench,
       },
       {
@@ -121,7 +121,7 @@ export function SystemHealthPanel({
         count: newEnquiriesCount,
         detail: newEnquiriesCount > 0 ? 'New customer bookings awaiting callback' : 'No unactioned enquiries',
         severity: newEnquiriesCount > 3 ? 'warning' : newEnquiriesCount > 0 ? 'warning' : 'ok',
-        module: 'enquiries' as AdminModuleKey,
+        module: 'enquiries',
         icon: ClipboardList,
       },
       {
@@ -130,7 +130,7 @@ export function SystemHealthPanel({
         count: awaitingApprovalCount,
         detail: awaitingApprovalCount > 0 ? 'Customers reviewing repair quotes' : 'No pending quote approvals',
         severity: awaitingApprovalCount > 0 ? 'warning' : 'ok',
-        module: 'jobs' as AdminModuleKey,
+        module: 'jobs',
         icon: ShieldCheck,
       },
       {
@@ -139,7 +139,7 @@ export function SystemHealthPanel({
         count: pendingPaymentsCount,
         detail: pendingPaymentsCount > 0 ? 'Submitted UTR refs awaiting verification' : 'All submitted payments verified',
         severity: pendingPaymentsCount > 0 ? 'critical' : 'ok',
-        module: 'payments' as AdminModuleKey,
+        module: 'payments',
         icon: CreditCard,
       },
       {
@@ -148,7 +148,7 @@ export function SystemHealthPanel({
         count: unpaidInvoicesCount,
         detail: unpaidInvoicesCount > 0 ? 'Invoices with unpaid balance due' : 'Zero overdue invoice balances',
         severity: unpaidInvoicesCount > 0 ? 'warning' : 'ok',
-        module: 'invoices' as AdminModuleKey,
+        module: 'invoices',
         icon: CreditCard,
       },
       {
@@ -157,7 +157,7 @@ export function SystemHealthPanel({
         count: unreadMessagesCount,
         detail: unreadMessagesCount > 0 ? 'Contact desk messages needing reply' : 'Inbox cleared',
         severity: unreadMessagesCount > 0 ? 'warning' : 'ok',
-        module: 'messages' as AdminModuleKey,
+        module: 'messages',
         icon: Mail,
       },
       {
@@ -166,10 +166,11 @@ export function SystemHealthPanel({
         count: todayApptsPending,
         detail: todayApptsPending > 0 ? 'Appointments scheduled for today need confirmation' : 'Today schedule confirmed',
         severity: todayApptsPending > 0 ? 'warning' : 'ok',
-        module: 'appointments' as AdminModuleKey,
+        module: 'appointments',
         icon: Calendar,
       },
-    ].filter((task) => hasPermission(task.module, 'view'));
+    ];
+    const tasks = allTasks.filter((task) => hasPermission(task.module, 'view'));
 
     const lowParts = inventory
       .filter((item) => item.quantity <= item.minStock)

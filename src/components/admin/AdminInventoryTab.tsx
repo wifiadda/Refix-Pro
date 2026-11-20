@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowDownUp, Package, Plus, Search, ShoppingBag, Trash2, Truck, X } from 'lucide-react';
+import { AlertTriangle, ArrowDownUp, Download, Package, Plus, Search, ShoppingBag, Trash2, Truck, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useErp } from '../../context/ErpContext';
 import { extractReadableError } from '../../lib/firebase';
@@ -230,28 +230,61 @@ export function AdminInventoryTab({
         {subTab === 'parts' && (
           <div className="flex flex-wrap items-center gap-2">
             {isAdmin && hasPermission('inventory', 'export') && (
-              <button
-                type="button"
-                onClick={() =>
-                  downloadCsvFile(
-                    `refix-pro-inventory-${new Date().toISOString().slice(0, 10)}.csv`,
-                    ['Code', 'SKU', 'Part Name', 'Compatible Models', 'Qty', 'Min Stock', 'Cost', 'Selling'],
-                    filteredParts.map((p) => [
-                      p.partCode,
-                      p.sku,
-                      p.name,
-                      p.compatibleModels,
-                      p.quantity,
-                      p.minStock,
-                      p.purchasePrice,
-                      p.sellingPrice,
-                    ])
-                  )
-                }
-                className="px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs font-semibold hover:bg-[#F5F5F7]"
-              >
-                Export CSV
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadCsvFile(
+                      `refix-pro-inventory-${new Date().toISOString().slice(0, 10)}.csv`,
+                      ['Code', 'SKU', 'Part Name', 'Compatible Models', 'Supplier', 'Shelf', 'Qty', 'Min Stock', 'Cost (INR)', 'Selling (INR)', 'Valuation (INR)'],
+                      filteredParts.map((p) => [
+                        p.partCode,
+                        p.sku,
+                        p.name,
+                        p.compatibleModels,
+                        p.supplierName,
+                        p.location,
+                        p.quantity,
+                        p.minStock,
+                        p.purchasePrice,
+                        p.sellingPrice,
+                        p.purchasePrice * p.quantity,
+                      ])
+                    )
+                  }
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs font-semibold hover:bg-[#F5F5F7]"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#0066CC]" />
+                  Export CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const lowParts = inventory.filter((p) => p.quantity <= p.minStock);
+                    downloadCsvFile(
+                      `refix-pro-low-stock-reorder-${new Date().toISOString().slice(0, 10)}.csv`,
+                      ['SKU', 'Part Name', 'Supplier', 'Current Qty', 'Min Threshold', 'Suggested Reorder Qty', 'Est. Unit Cost (INR)', 'Est. Reorder Cost (INR)'],
+                      lowParts.map((p) => {
+                        const reorderQty = Math.max(1, p.minStock * 2 - p.quantity);
+                        return [
+                          p.sku,
+                          p.name,
+                          p.supplierName || 'TBD',
+                          p.quantity,
+                          p.minStock,
+                          reorderQty,
+                          p.purchasePrice,
+                          reorderQty * p.purchasePrice,
+                        ];
+                      })
+                    );
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-xs font-semibold hover:bg-amber-100"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Low-Stock Reorder CSV ({valuation.lowCount})
+                </button>
+              </>
             )}
             {isAdmin && hasPermission('inventory', 'create') && (
               <button
@@ -264,6 +297,32 @@ export function AdminInventoryTab({
               </button>
             )}
           </div>
+        )}
+        {subTab === 'movements' && isAdmin && hasPermission('inventory', 'export') && stockMovements.length > 0 && (
+          <button
+            type="button"
+            onClick={() =>
+              downloadCsvFile(
+                `refix-pro-stock-movements-${new Date().toISOString().slice(0, 10)}.csv`,
+                ['SKU', 'Part Name', 'Movement Type', 'Delta', 'Previous Qty', 'Next Qty', 'Job Card', 'Actor', 'Note'],
+                stockMovements.map((m) => [
+                  m.sku,
+                  m.partName,
+                  m.type,
+                  m.quantityDelta,
+                  m.previousQty,
+                  m.nextQty,
+                  m.jobCardCode || '',
+                  m.actorName,
+                  m.note,
+                ])
+              )
+            }
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#D2D2D7] bg-white text-xs font-semibold hover:bg-[#F5F5F7]"
+          >
+            <Download className="w-3.5 h-3.5 text-[#0066CC]" />
+            Export Stock Ledger CSV
+          </button>
         )}
       </div>
 

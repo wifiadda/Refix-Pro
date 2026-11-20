@@ -617,12 +617,13 @@ export function AdminJobsTab({
 
       <ConfirmDialog
         open={confirmBulkOpen}
+        destructive={false}
         title={`Update ${selectedIds.length} Repair Job Card(s)?`}
         description={`This will set the workflow status of ${selectedIds.length} selected job card(s) to "${bulkStatus}"${
           bulkTechName ? ` and assign them to ${bulkTechName}` : ''
         }.`}
         confirmLabel="Apply Bulk Status"
-        loading={bulkSaving}
+        busy={bulkSaving}
         onCancel={() => setConfirmBulkOpen(false)}
         onConfirm={() => void handleBulkApply()}
       />

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Download, Inbox, Mail, MessageCircle, Search, Trash2, Wrench, X } from 'lucide-react';
+import { CheckSquare, Download, Inbox, Mail, MessageCircle, Search, Trash2, Wrench, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useErp } from '../../context/ErpContext';
 import { extractReadableError } from '../../lib/firebase';
@@ -28,6 +28,11 @@ export function AdminEnquiriesTab({
   const [creatingJobId, setCreatingJobId] = useState<string | null>(null);
 
   const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkStatus, setBulkStatus] = useState<EnquiryStatus>('Contacted');
+  const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+
   const [editStatus, setEditStatus] = useState<EnquiryStatus>('New');
   const [editNotes, setEditNotes] = useState('');
   const [editEstimate, setEditEstimate] = useState('');
@@ -37,6 +42,8 @@ export function AdminEnquiriesTab({
   const [editPaymentMethod, setEditPaymentMethod] = useState('');
   const [editPaymentRef, setEditPaymentRef] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const canEditEnquiry = hasPermission('enquiries', 'edit');
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -62,6 +69,40 @@ export function AdminEnquiriesTab({
     () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
     [filtered, page]
   );
+
+  const paginatedIds = useMemo(() => paginated.map((e) => e.id), [paginated]);
+  const allPageSelected =
+    paginatedIds.length > 0 && paginatedIds.every((id) => selectedIds.includes(id));
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectPage = () => {
+    if (allPageSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !paginatedIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...paginatedIds])));
+    }
+  };
+
+  const handleBulkEnquiryUpdate = async () => {
+    if (selectedIds.length === 0) return;
+    setBulkSaving(true);
+    try {
+      await Promise.all(selectedIds.map((id) => updateEnquiry(id, { status: bulkStatus })));
+      const count = selectedIds.length;
+      setSelectedIds([]);
+      setConfirmBulkOpen(false);
+      onNotify('success', `Updated ${count} enquiry record(s) to "${bulkStatus}".`);
+    } catch (err) {
+      onNotify('error', extractReadableError(err, 'Failed to bulk update enquiries.'));
+    } finally {
+      setBulkSaving(false);
+    }
+  };
 
   const openDetail = (enq: RepairEnquiry) => {
     setSelected(enq);
@@ -207,6 +248,45 @@ export function AdminEnquiriesTab({
         </Button>
       </div>
 
+      {canEditEnquiry && selectedIds.length > 0 && (
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-[#0F172A] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs sm:text-sm">
+            <CheckSquare className="w-4 h-4 text-blue-300 shrink-0" />
+            <span className="font-bold">{selectedIds.length} enquiry(s) selected</span>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="text-xs text-slate-300 hover:text-white underline ml-1"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={bulkStatus}
+              onChange={(e) => setBulkStatus(e.target.value as EnquiryStatus)}
+              aria-label="Bulk enquiry status"
+              className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white text-[#1D1D1F] text-xs font-semibold"
+            >
+              {ENQUIRY_STATUSES.map((st) => (
+                <option key={st} value={st}>
+                  Set Status: {st}
+                </option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              loading={bulkSaving}
+              onClick={() => setConfirmBulkOpen(true)}
+            >
+              Apply Bulk Status
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       {filtered.length === 0 ? (
         <EmptyState
@@ -235,6 +315,17 @@ export function AdminEnquiriesTab({
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#E5E5EA] bg-[#F5F5F7] text-xs font-semibold text-[#424245]">
+                  {canEditEnquiry && (
+                    <th className="py-3 pl-4 pr-2 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allPageSelected}
+                        onChange={toggleSelectPage}
+                        aria-label="Select all enquiries on current page"
+                        className="w-4 h-4 rounded border-[#D2D2D7] text-[#0066CC]"
+                      />
+                    </th>
+                  )}
                   <th className="py-3 px-4">ID</th>
                   <th className="py-3 px-4">Customer</th>
                   <th className="py-3 px-4">MacBook & Service</th>
@@ -244,8 +335,24 @@ export function AdminEnquiriesTab({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E5E5EA] text-xs sm:text-sm">
-                {paginated.map((enq) => (
-                  <tr key={enq.id} className="hover:bg-[#F5F5F7]/60">
+                {paginated.map((enq) => {
+                  const isChecked = selectedIds.includes(enq.id);
+                  return (
+                  <tr
+                    key={enq.id}
+                    className={isChecked ? 'bg-blue-50/50' : 'hover:bg-[#F5F5F7]/60'}
+                  >
+                    {canEditEnquiry && (
+                      <td className="py-3 pl-4 pr-2">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleSelectOne(enq.id)}
+                          aria-label={`Select ${enq.enquiryCode}`}
+                          className="w-4 h-4 rounded border-[#D2D2D7] text-[#0066CC]"
+                        />
+                      </td>
+                    )}
                     <td className="py-3 px-4 font-mono font-semibold text-[#0066CC] tabular-nums whitespace-nowrap">
                       {enq.enquiryCode}
                     </td>
@@ -334,7 +441,8 @@ export function AdminEnquiriesTab({
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -347,6 +455,17 @@ export function AdminEnquiriesTab({
           />
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmBulkOpen}
+        destructive={false}
+        title={`Update ${selectedIds.length} Enquiry Record(s)?`}
+        description={`This will update the status of ${selectedIds.length} selected enquiry(s) to "${bulkStatus}" across the Repair Desk and Customer Tracking portal.`}
+        confirmLabel="Apply Bulk Status"
+        busy={bulkSaving}
+        onCancel={() => setConfirmBulkOpen(false)}
+        onConfirm={() => void handleBulkEnquiryUpdate()}
+      />
 
       <ConfirmDialog
         open={Boolean(confirmDeleteId)}

@@ -1,20 +1,22 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   CheckCircle2,
   CreditCard,
+  FileText,
   MapPin,
   Search,
   ShieldCheck,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useErp } from '../context/ErpContext';
 import { useSeoMeta } from '../utils/seo';
 import { extractReadableError, normalizeMobileKey } from '../lib/firebase';
 import { RepairPaymentPanel } from '../components/RepairPaymentPanel';
 import { FadeInSection, HeroReveal } from '../components/MotionPrimitives';
 import { StatusBadge } from '../components/ui/DesignSystem';
-import type { RepairTrackingRecord } from '../types';
+import type { InvoiceRecord, RepairTrackingRecord } from '../types';
 
 export function PayRepairPage({
   onNotify,
@@ -22,22 +24,48 @@ export function PayRepairPage({
   onNotify: (type: 'success' | 'error', message: string) => void;
 }) {
   const { settings, trackRepairEnquiry, user } = useApp();
+  const { customerInvoices } = useErp();
   const [searchParams] = useSearchParams();
 
   const initialCode = searchParams.get('code') || '';
   const initialMobile = searchParams.get('mobile') || '';
+  const initialInvoiceParam = (searchParams.get('invoice') || '').trim();
+  const initialAmountParam = Math.max(0, Math.round(Number(searchParams.get('amount')) || 0));
 
   const [lookupCode, setLookupCode] = useState(initialCode);
   const [lookupMobile, setLookupMobile] = useState(initialMobile);
   const [lookingUp, setLookingUp] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [record, setRecord] = useState<RepairTrackingRecord | null>(null);
-  const [manualBillMode, setManualBillMode] = useState(!initialCode);
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceRecord | null>(null);
+  const [manualBillMode, setManualBillMode] = useState(!initialCode && !initialInvoiceParam);
+
+  const pendingCustomerInvoices = useMemo(
+    () =>
+      customerInvoices.filter(
+        (inv) =>
+          inv.status === 'Unpaid' ||
+          inv.status === 'Partial' ||
+          (inv.outstandingAmount > 0 && inv.status !== 'Refunded')
+      ),
+    [customerInvoices]
+  );
+
+  useEffect(() => {
+    if (!initialInvoiceParam || selectedInvoice) return;
+    const match = customerInvoices.find(
+      (inv) => inv.invoiceNumber.toLowerCase() === initialInvoiceParam.toLowerCase()
+    );
+    if (match) {
+      setSelectedInvoice(match);
+      setManualBillMode(false);
+    }
+  }, [initialInvoiceParam, customerInvoices, selectedInvoice]);
 
   useSeoMeta({
-    title: 'Pay Repair Bill Online (Razorpay & UPI) | Refix Pro Gurugram',
+    title: 'Pay Repair Bill Online (Razorpay & UPI QR) | Refix Pro Gurugram',
     description:
-      'Pay your confirmed Refix Pro MacBook, iPad, or iPhone repair invoice securely online via Razorpay Checkout or direct UPI / QR / Bank Transfer.',
+      'Pay your confirmed Refix Pro MacBook, iPad, or iPhone repair invoice securely online via dynamic UPI QR code, Razorpay Checkout, or Bank Transfer.',
     canonicalPath: '/pay',
   });
 
@@ -64,6 +92,7 @@ export function PayRepairPage({
         setLookupError('No matching repair job found for that Enquiry ID and mobile number.');
       } else {
         setRecord(found);
+        setSelectedInvoice(null);
         setManualBillMode(false);
       }
     } catch (err) {
@@ -73,6 +102,25 @@ export function PayRepairPage({
       setLookingUp(false);
     }
   };
+
+  const activeInvoiceAmount = selectedInvoice
+    ? selectedInvoice.outstandingAmount > 0
+      ? selectedInvoice.outstandingAmount
+      : selectedInvoice.totalAmount
+    : 0;
+  const effectiveDefaultAmount =
+    activeInvoiceAmount > 0
+      ? activeInvoiceAmount
+      : record?.payableAmount && record.payableAmount > 0
+        ? record.payableAmount
+        : initialAmountParam;
+  const effectiveInvoiceNumber =
+    selectedInvoice?.invoiceNumber || initialInvoiceParam || '';
+  const effectiveEnquiryCode =
+    selectedInvoice?.enquiryCode ||
+    selectedInvoice?.jobCardCode ||
+    record?.enquiryCode ||
+    lookupCode;
 
   return (
     <div className="bg-[#F5F5F7] min-h-screen py-12 lg:py-16">
@@ -95,8 +143,66 @@ export function PayRepairPage({
         </HeroReveal>
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
-          {/* Left: Enquiry Lookup or Switch to Direct Manual Payment */}
+          {/* Left: Signed-in Pending Invoices + Enquiry Lookup or Switch to Direct Manual Payment */}
           <FadeInSection className="xl:col-span-5 space-y-5">
+            {user && pendingCustomerInvoices.length > 0 && (
+              <div className="p-6 rounded-2xl bg-white border border-[#E5E5EA] space-y-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold text-[#0066CC]">Signed-in Account Invoices</p>
+                    <h2 className="text-base font-bold text-[#1D1D1F] mt-0.5">
+                      Select a Pending Invoice to Generate UPI QR
+                    </h2>
+                  </div>
+                  <FileText className="w-5 h-5 text-[#0066CC] shrink-0" />
+                </div>
+
+                <div className="space-y-2.5">
+                  {pendingCustomerInvoices.map((inv) => {
+                    const due = inv.outstandingAmount > 0 ? inv.outstandingAmount : inv.totalAmount;
+                    const isSelected = selectedInvoice?.id === inv.id;
+                    return (
+                      <button
+                        key={inv.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedInvoice(inv);
+                          setRecord(null);
+                          setManualBillMode(false);
+                        }}
+                        className={`w-full text-left p-3.5 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                          isSelected
+                            ? 'border-[#0066CC] bg-blue-50/70 ring-1 ring-[#0066CC]'
+                            : 'border-[#E5E5EA] bg-[#F5F5F7]/50 hover:bg-[#F5F5F7]'
+                        }`}
+                      >
+                        <div className="min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-xs font-bold text-[#0066CC]">
+                              {inv.invoiceNumber}
+                            </span>
+                            <StatusBadge label={inv.status} />
+                          </div>
+                          <p className="text-xs font-semibold text-[#1D1D1F] truncate">
+                            {inv.deviceSummary}
+                          </p>
+                          <p className="text-[11px] text-[#6E6E73] truncate">{inv.repairSummary}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-mono text-sm font-bold text-[#1D1D1F] tabular-nums">
+                            ₹{due.toLocaleString('en-IN')}
+                          </p>
+                          <p className="text-[10px] font-semibold text-[#0066CC]">
+                            {isSelected ? 'Selected' : 'Load QR →'}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="p-6 rounded-2xl bg-white border border-[#E5E5EA] space-y-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -174,6 +280,7 @@ export function PayRepairPage({
                   type="button"
                   onClick={() => {
                     setRecord(null);
+                    setSelectedInvoice(null);
                     setManualBillMode(true);
                   }}
                   className="font-semibold text-[#0066CC] hover:underline"
@@ -208,30 +315,41 @@ export function PayRepairPage({
               <div className="flex items-center justify-between gap-3 border-b border-[#E5E5EA] pb-4">
                 <div>
                   <p className="text-xs font-semibold text-[#0066CC]">
-                    Step 2 · Choose Payment Method
+                    Step 2 · Instant Dynamic UPI QR & Online Settlement
                   </p>
                   <h2 className="text-xl font-bold text-[#1D1D1F] mt-0.5">
-                    {record
-                      ? `Settlement for ${record.enquiryCode} (${record.macbookModel})`
-                      : manualBillMode
-                        ? 'Direct Repair Payment (Razorpay or UPI / QR / Bank)'
-                        : 'Select Payment Mode'}
+                    {selectedInvoice
+                      ? `Settlement for ${selectedInvoice.invoiceNumber} (${selectedInvoice.deviceSummary})`
+                      : record
+                        ? `Settlement for ${record.enquiryCode} (${record.macbookModel})`
+                        : manualBillMode
+                          ? 'Direct Repair Payment (Dynamic UPI QR, Razorpay & Bank)'
+                          : 'Select Payment Mode'}
                   </h2>
                 </div>
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
               </div>
 
               <RepairPaymentPanel
-                key={record ? record.id : 'manual-bill'}
-                enquiryCode={record?.enquiryCode || lookupCode}
-                customerName={user?.displayName || ''}
-                mobile={lookupMobile}
-                email={user?.email || ''}
-                defaultAmount={record?.payableAmount || 0}
-                allowCustomAmount={!record?.payableAmount || record.payableAmount <= 0}
-                paymentStatus={record?.paymentStatus || 'Unpaid'}
+                key={selectedInvoice ? selectedInvoice.id : record ? record.id : 'manual-bill'}
+                enquiryCode={effectiveEnquiryCode}
+                invoiceNumber={effectiveInvoiceNumber}
+                customerName={selectedInvoice?.customerName || user?.displayName || ''}
+                mobile={selectedInvoice?.customerMobile || lookupMobile}
+                email={selectedInvoice?.customerEmail || user?.email || ''}
+                defaultAmount={effectiveDefaultAmount}
+                allowCustomAmount={effectiveDefaultAmount <= 0}
+                paymentStatus={
+                  selectedInvoice
+                    ? selectedInvoice.status === 'Paid'
+                      ? 'Paid'
+                      : 'Unpaid'
+                    : record?.paymentStatus || 'Unpaid'
+                }
                 existingReference={record?.paymentReference || ''}
-                deviceLabel={record?.macbookModel || 'MacBook Repair Service'}
+                deviceLabel={
+                  selectedInvoice?.deviceSummary || record?.macbookModel || 'MacBook Repair Service'
+                }
                 onSuccess={(msg) => onNotify('success', msg)}
                 onError={(msg) => onNotify('error', msg)}
               />

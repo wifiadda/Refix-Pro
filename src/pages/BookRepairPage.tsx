@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
+  Check,
   CheckCircle2,
+  Copy,
   LogIn,
   MessageCircle,
   Phone,
+  RotateCcw,
   Search,
   ShieldAlert,
+  Sparkles,
   Upload,
   UserCheck,
   X,
@@ -18,6 +22,7 @@ import {
   buildTelHref,
   buildWhatsAppUrl,
   compressImageToDataUrl,
+  generateServiceWhatsAppTemplate,
 } from '../utils/whatsapp';
 import { HeroReveal } from '../components/MotionPrimitives';
 
@@ -26,21 +31,25 @@ export function BookRepairPage({
 }: {
   onNotify: (type: 'success' | 'error', message: string) => void;
 }) {
-  const { models, settings, submitRepairEnquiry, user, customerLogin } = useApp();
+  const { services, models, settings, submitRepairEnquiry, user, customerLogin } = useApp();
   const [searchParams] = useSearchParams();
 
   const initialService =
     searchParams.get('service') || 'General MacBook Diagnostic Inspection';
   const initialModel = searchParams.get('model') || '';
   const initialProblem = searchParams.get('problem') || '';
-  const hasPrefilledService = Boolean(searchParams.get('service'));
 
+  const [selectedService, setSelectedService] = useState(initialService);
   const [customerName, setCustomerName] = useState('');
   const [mobile, setMobile] = useState('');
   const [macbookModel, setMacbookModel] = useState(initialModel);
   const [problemDescription, setProblemDescription] = useState(initialProblem);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [honeypot, setHoneypot] = useState('');
+
+  const [waCustomMessage, setWaCustomMessage] = useState('');
+  const [isWaEdited, setIsWaEdited] = useState(false);
+  const [copiedWa, setCopiedWa] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [confirmedEnquiry, setConfirmedEnquiry] = useState<{
@@ -50,6 +59,41 @@ export function BookRepairPage({
     macbookModel: string;
     serviceName: string;
   } | null>(null);
+
+  const activeServices = useMemo(
+    () =>
+      services
+        .filter((s) => s.isActive !== false)
+        .slice()
+        .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999)),
+    [services]
+  );
+
+  const matchedService = useMemo(
+    () => activeServices.find((s) => s.title.toLowerCase() === selectedService.trim().toLowerCase()),
+    [activeServices, selectedService]
+  );
+
+  const generatedWaTemplate = useMemo(
+    () =>
+      generateServiceWhatsAppTemplate({
+        serviceTitle: selectedService,
+        serviceCategory: matchedService?.category,
+        macbookModel,
+        customerName,
+        mobile,
+        problemDescription,
+      }),
+    [selectedService, matchedService?.category, macbookModel, customerName, mobile, problemDescription]
+  );
+
+  useEffect(() => {
+    if (!isWaEdited) {
+      setWaCustomMessage(generatedWaTemplate);
+    }
+  }, [generatedWaTemplate, isWaEdited]);
+
+  const liveWaMessage = waCustomMessage || generatedWaTemplate;
 
   const pageCopy = settings.pageContent.book;
 
@@ -105,7 +149,7 @@ export function BookRepairPage({
         mobile,
         whatsapp: mobile,
         macbookModel,
-        serviceName: initialService,
+        serviceName: selectedService,
         problemDescription,
         imageUrls,
       });
@@ -115,7 +159,7 @@ export function BookRepairPage({
         customerName: customerName.trim(),
         mobile: mobile.trim(),
         macbookModel: macbookModel.trim(),
-        serviceName: initialService,
+        serviceName: selectedService,
       });
       onNotify('success', `Repair request ${result.enquiryCode} submitted successfully.`);
     } catch (error) {
@@ -293,13 +337,6 @@ export function BookRepairPage({
             />
           </div>
 
-          {hasPrefilledService && (
-            <div className="p-3.5 rounded-xl bg-[#F5F5F7] border border-[#E5E5EA] text-xs text-[#424245]">
-              Selected Service Focus: <span className="font-semibold text-[#1D1D1F]">{initialService}</span>
-            </div>
-          )}
-
-          {/* Strictly 3 Compulsory Fields */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
               <label htmlFor="customerName" className="block text-xs font-semibold text-[#1D1D1F] mb-1.5">
@@ -331,7 +368,37 @@ export function BookRepairPage({
               />
             </div>
 
-            <div className="sm:col-span-2">
+            <div>
+              <label htmlFor="serviceType" className="block text-xs font-semibold text-[#1D1D1F] mb-1.5">
+                Repair Service Type *
+              </label>
+              <select
+                id="serviceType"
+                value={selectedService}
+                onChange={(e) => {
+                  setSelectedService(e.target.value);
+                  setIsWaEdited(false);
+                }}
+                className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-white text-sm text-[#1D1D1F] focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+              >
+                <option value="General MacBook Diagnostic Inspection">
+                  General MacBook Diagnostic Inspection
+                </option>
+                {activeServices.map((srv) => (
+                  <option key={srv.id} value={srv.title}>
+                    {srv.title} ({srv.category})
+                  </option>
+                ))}
+                {!activeServices.some((s) => s.title === selectedService) &&
+                  selectedService !== 'General MacBook Diagnostic Inspection' &&
+                  selectedService !== 'Other MacBook / Apple Repair' && (
+                    <option value={selectedService}>{selectedService}</option>
+                  )}
+                <option value="Other MacBook / Apple Repair">Other MacBook / Apple Repair</option>
+              </select>
+            </div>
+
+            <div>
               <label htmlFor="macbookModel" className="block text-xs font-semibold text-[#1D1D1F] mb-1.5">
                 MacBook Model *
               </label>
@@ -342,7 +409,7 @@ export function BookRepairPage({
                 list="macbook-model-suggestions"
                 value={macbookModel}
                 onChange={(e) => setMacbookModel(e.target.value)}
-                placeholder="e.g. MacBook Air M1 (A2337), MacBook Pro 14 M3, iPad Pro M2, iPhone 15 Pro..."
+                placeholder="e.g. MacBook Air M1 (A2337), MacBook Pro 14 M3..."
                 className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] text-sm focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
               />
               <datalist id="macbook-model-suggestions">
@@ -409,6 +476,83 @@ export function BookRepairPage({
             <p>{pageCopy.securityNote}</p>
           </div>
 
+          {/* Service-Specific Automated WhatsApp Message Generator */}
+          <div className="rounded-2xl border border-[#E5E5EA] bg-[#F5F5F7]/70 p-5 space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="space-y-0.5">
+                <p className="text-xs font-semibold text-[#0066CC] flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Automated WhatsApp Message Generator
+                </p>
+                <p className="text-xs text-[#424245]">
+                  Pre-filled with your selected service (<span className="font-semibold text-[#1D1D1F]">{selectedService}</span>) and device model for instant desk quotes.
+                </p>
+              </div>
+              {isWaEdited && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsWaEdited(false);
+                    setWaCustomMessage(generatedWaTemplate);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#D2D2D7] bg-white hover:bg-[#F5F5F7] text-xs font-semibold text-[#1D1D1F] shrink-0 self-start sm:self-auto"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-[#0066CC]" />
+                  Reset Template
+                </button>
+              )}
+            </div>
+
+            <textarea
+              aria-label="Automated WhatsApp repair message preview"
+              rows={6}
+              value={liveWaMessage}
+              onChange={(e) => {
+                setWaCustomMessage(e.target.value);
+                setIsWaEdited(true);
+              }}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-[#D2D2D7] bg-white text-xs sm:text-sm text-[#1D1D1F] font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+            />
+
+            <div className="flex flex-wrap items-center gap-3">
+              <a
+                href={buildWhatsAppUrl(settings.whatsapp, liveWaMessage)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="min-h-[44px] inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap"
+              >
+                <MessageCircle className="w-4 h-4" />
+                Send via WhatsApp Desk
+              </a>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(liveWaMessage);
+                    setCopiedWa(true);
+                    onNotify('success', 'WhatsApp repair message copied to clipboard.');
+                    window.setTimeout(() => setCopiedWa(false), 2200);
+                  } catch {
+                    onNotify('error', 'Unable to copy message automatically.');
+                  }
+                }}
+                className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-[#D2D2D7] bg-white hover:bg-[#F5F5F7] text-[#1D1D1F] text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap"
+              >
+                {copiedWa ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-600" />
+                    Copied Message
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 text-[#0066CC]" />
+                    Copy Message
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
           <div className="pt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <button
               type="submit"
@@ -423,7 +567,7 @@ export function BookRepairPage({
               </Link>
               <span>·</span>
               <a
-                href={buildWhatsAppUrl(settings.whatsapp)}
+                href={buildWhatsAppUrl(settings.whatsapp, liveWaMessage)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-semibold text-[#16A34A] hover:underline whitespace-nowrap"
